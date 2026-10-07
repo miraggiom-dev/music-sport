@@ -1,0 +1,9 @@
+export { ClientNav } from "./ClientNav.tsx";
+export { Catalog } from "./Catalog.tsx";
+export { CatalogFooter } from "./CatalogFooter.tsx";
+export { ProductDetail } from "./ProductDetail.tsx";
+export { CartView } from "./CartView.tsx";
+export { Checkout } from "./Checkout.tsx";
+export { OrderConfirm } from "./OrderConfirm.tsx";
+export { ClientProfile } from "./ClientProfile.tsx";
+export { ClientOrders } from "./ClientOrders.tsx";
