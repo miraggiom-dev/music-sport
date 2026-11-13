@@ -1,88 +1,16 @@
-import {
-  BsRef,
-  StatusBadge,
-  Logo,
-  Input,
-  StatCard,
-  StatusFilter,
-  OrderDetailModal,
-  ConfirmDialog,
-  round2,
-  taxLabel,
-  ORDER_STATUSES,
-  printReceipt,
-  FALLBACK_IMG,
-  NEXT_STATUS,
-  OPEN_STATUSES,
-  PAID_STATUSES,
-  RATE_STALE_HOURS,
-  currentPeriodKey,
-  escapeHtml,
-  fmt,
-  fmtDateTime,
-  fmtDay,
-  fmtBs,
-  isValidEmail,
-  isValidName,
-  isValidPass,
-  isValidPhone,
-  isValidPrice,
-  isValidSku,
-  isValidStock,
-  onImgError,
-  periodName,
-  rateAgeHours,
-  salesTrend,
-  statusLabel,
-  toISODate,
-  IMG_TYPES,
-  IMG_MAX_MB,
-  statusColor,
-  statusIcon,
-} from "./shared";
-import { Image as ImageIcon, Upload, Lock, Printer } from "lucide-react";
+import type { Product } from "@/types";
+import { AlertTriangle, Package, Search, XCircle } from "lucide-react";
 import { useState } from "react";
-import {
-  AlertTriangle,
-  BarChart2,
-  CheckCircle,
-  Coins,
-  DollarSign,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Mail,
-  Package,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
-  Truck,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { toast as notify } from "sonner";
-import type {
-  ChangeStatus,
-  Client,
-  ExchangeRate,
-  InternalUser,
-  Order,
-  OrderStatus,
-  Period,
-  Product,
-  ReportType,
-  View,
-} from "@/types";
-import { printDocument } from "@/lib/generatePDF";
+import { isValidStock, StatCard } from "./shared";
+
+export type StockStatus = "normal" | "bajo" | "agotado";
+
+// Única regla de stock para Inventario, Dashboard e Informes.
+export const stockStatus = (
+  p: Pick<Product, "stock" | "minStock">,
+): StockStatus =>
+  p.stock === 0 ? "agotado" : p.stock <= p.minStock ? "bajo" : "normal";
 export function AdminInventory({
   products,
   setProducts,
@@ -92,23 +20,16 @@ export function AdminInventory({
   setProducts: (p: Product[]) => void;
   canEdit: boolean;
 }) {
-  const lowStock = products.filter((p) => p.stock <= p.minStock && p.stock > 0);
-  const outStock = products.filter((p) => p.stock === 0);
+  const lowStock = products.filter((p) => stockStatus(p) === "bajo");
+  const outStock = products.filter((p) => stockStatus(p) === "agotado");
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [adjVal, setAdjVal] = useState("");
   const [adjErr, setAdjErr] = useState("");
-  const [toast, setToast] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "normal" | "bajo" | "agotado">(
     "todos",
   );
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
-  const stockStatus = (p: Product) =>
-    p.stock === 0 ? "agotado" : p.stock <= p.minStock ? "bajo" : "normal";
   const rows = products.filter(
     (p) =>
       (filter === "todos" || stockStatus(p) === filter) &&
@@ -131,17 +52,11 @@ export function AdminInventory({
       products.map((p) => (p.id === adjustId ? { ...p, stock: n } : p)),
     );
     setAdjustId(null);
-    showToast("Stock actualizado");
+    notify.success("Stock actualizado");
   };
 
   return (
     <div className="space-y-6">
-      {toast && (
-        <div className="fixed top-[calc(1rem+var(--safe-top))] right-4 z-50 bg-[#000080] text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
-          <CheckCircle size={16} className="text-green-300" />
-          {toast}
-        </div>
-      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="Total Productos"
@@ -153,7 +68,7 @@ export function AdminInventory({
         <StatCard
           label="Stock Bajo"
           value={String(lowStock.length)}
-          sub="Por debajo del mínimo"
+          sub="En el mínimo o por debajo"
           icon={<AlertTriangle size={20} />}
           color="#C8102E"
         />

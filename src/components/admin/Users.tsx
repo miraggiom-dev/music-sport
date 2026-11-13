@@ -1,87 +1,70 @@
+import type { InternalUser } from "@/types";
 import {
-  BsRef,
-  StatusBadge,
-  Logo,
+  AlertTriangle,
+  Edit2,
+  Lock,
+  Mail,
+  Phone,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  X,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { useState } from "react";
+import { toast as notify } from "sonner";
+import {
   Input,
-  StatCard,
-  StatusFilter,
-  OrderDetailModal,
-  round2,
-  taxLabel,
-  ORDER_STATUSES,
-  printReceipt,
-  FALLBACK_IMG,
-  NEXT_STATUS,
-  OPEN_STATUSES,
-  PAID_STATUSES,
-  RATE_STALE_HOURS,
-  currentPeriodKey,
-  escapeHtml,
-  fmt,
-  fmtDateTime,
-  fmtDay,
-  fmtBs,
   isValidEmail,
   isValidName,
   isValidPass,
   isValidPhone,
-  isValidPrice,
-  isValidSku,
-  isValidStock,
-  onImgError,
-  periodName,
-  rateAgeHours,
-  salesTrend,
-  statusLabel,
   toISODate,
-  IMG_TYPES,
-  IMG_MAX_MB,
-  statusColor,
-  statusIcon,
 } from "./shared";
-import { Image as ImageIcon, Upload, Lock, Printer } from "lucide-react";
-import { useState } from "react";
-import {
-  AlertTriangle,
-  BarChart2,
-  CheckCircle,
-  Coins,
-  DollarSign,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Mail,
-  Package,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
-  Truck,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { toast as notify } from "sonner";
-import type {
-  ChangeStatus,
-  Client,
-  ExchangeRate,
-  InternalUser,
-  Order,
-  OrderStatus,
-  Period,
-  Product,
-  ReportType,
-  View,
-} from "@/types";
-import { printDocument } from "@/lib/generatePDF";
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  children,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mx-auto">
+          <AlertTriangle className="text-red-600" size={22} />
+        </div>
+        <h3 className="text-center font-bold text-gray-800">{title}</h3>
+        <p className="text-center text-sm text-gray-500">{message}</p>
+        {children}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25]"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 export function AdminUsers({
   currentUserId,
   users,
@@ -100,7 +83,6 @@ export function AdminUsers({
     ...clientEmails.map((e) => ({ id: "client", email: e })),
   ];
   const [modal, setModal] = useState(false);
-  const [toast, setToast] = useState("");
   const blank: InternalUser = {
     id: `U${Date.now()}`,
     name: "",
@@ -117,11 +99,6 @@ export function AdminUsers({
   const [deleteUser, setDeleteUser] = useState<InternalUser | null>(null);
   const isEditing = users.some((u) => u.id === form.id);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
-
   const handleSave = () => {
     const e: Record<string, string> = {};
     if (!isValidName(form.name))
@@ -135,8 +112,7 @@ export function AdminUsers({
       )
     )
       e.email = "El correo ya se encuentra en uso";
-    if (!form.phone.trim()) e.phone = "Teléfono requerido";
-    else if (!isValidPhone(form.phone))
+    if (form.phone.trim() && !isValidPhone(form.phone))
       e.phone = "Teléfono inválido (ej: 0414-1234567)";
     if (!isEditing && !isValidPass(newPass))
       e.password = "Contraseña requerida (6-50 caracteres)";
@@ -152,15 +128,16 @@ export function AdminUsers({
       ...form,
       email: form.email.trim().toLowerCase(),
       name: form.name.trim(),
+      phone: form.phone.trim(),
       password: newPass || form.password,
     };
     if (isEditing) {
       setUsers(users.map((u) => (u.id === saved.id ? saved : u)));
       if (saved.id === currentUserId) setCurrentUser(saved);
-      showToast("Usuario actualizado");
+      notify.success("Usuario actualizado");
     } else {
       setUsers([...users, saved]);
-      showToast("Usuario creado y habilitado");
+      notify.success("Usuario creado y habilitado");
     }
     setModal(false);
     setErrors({});
@@ -168,14 +145,14 @@ export function AdminUsers({
 
   const tryDelete = (u: InternalUser) => {
     if (u.id === currentUserId) {
-      showToast("Acción bloqueada: no puedes eliminar tu propia cuenta");
+      notify.error("No puedes eliminar tu propia cuenta");
       return;
     }
     setDeleteUser(u);
   };
   const toggleStatus = (u: InternalUser) => {
     if (u.id === currentUserId) {
-      showToast("No puedes suspender tu propia cuenta");
+      notify.error("No puedes suspender tu propia cuenta");
       return;
     }
     setUsers(
@@ -185,7 +162,7 @@ export function AdminUsers({
           : x,
       ),
     );
-    showToast(
+    notify.success(
       u.status === "activo"
         ? `${u.name} suspendido (historial conservado)`
         : `${u.name} reactivado`,
@@ -194,12 +171,6 @@ export function AdminUsers({
 
   return (
     <div className="space-y-4">
-      {toast && (
-        <div className="fixed top-[calc(1rem+var(--safe-top))] right-4 z-50 bg-[#000080] text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
-          <CheckCircle size={16} className="text-green-300" />
-          {toast}
-        </div>
-      )}
       <div className="flex justify-end">
         <button
           onClick={() => {
@@ -326,7 +297,7 @@ export function AdminUsers({
                       ? "Nombre completo *"
                       : k === "email"
                         ? "Correo electrónico *"
-                        : "Teléfono *"}
+                        : "Teléfono"}
                   </label>
                   <input
                     value={form[k]}
@@ -410,53 +381,10 @@ export function AdminUsers({
           onConfirm={() => {
             setUsers(users.filter((x) => x.id !== deleteUser.id));
             setDeleteUser(null);
-            showToast("Usuario eliminado");
+            notify.success("Usuario eliminado");
           }}
         />
       )}
-    </div>
-  );
-}
-
-function ConfirmDialog({
-  title,
-  message,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-  children,
-}: {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-        <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mx-auto">
-          <AlertTriangle className="text-red-600" size={22} />
-        </div>
-        <h3 className="text-center font-bold text-gray-800">{title}</h3>
-        <p className="text-center text-sm text-gray-500">{message}</p>
-        {children}
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25]"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
