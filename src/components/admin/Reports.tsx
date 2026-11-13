@@ -1,73 +1,89 @@
-import { useState } from "react";
+import logoImg from "@/imports/Logo.png";
+import { printDocument } from "@/lib/generatePDF";
+import type { Order, Period, Product, ReportType } from "@/types";
 import {
+  Activity,
+  AlertTriangle,
   CheckCircle,
+  DollarSign,
   Download,
   FileText,
   LineChart,
   Package,
   TrendingUp,
   XCircle,
-  Activity,
-  AlertTriangle,
-  DollarSign,
 } from "lucide-react";
+import { useState } from "react";
 import { toast as notify } from "sonner";
-import type { Order, Period, Product, ReportType } from "@/types";
-import { PAID_STATUSES, escapeHtml, fmt } from "./shared";
-import { printDocument } from "@/lib/generatePDF";
-import logoImg from "@/imports/Logo.png";
+import { stockStatus, type StockStatus } from "./Inventory";
+import {
+  currentPeriodKey,
+  escapeHtml,
+  fmt,
+  PAID_STATUSES,
+  StatusBadge,
+  toISODate,
+} from "./shared";
+
+const MONTH_LABELS = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+];
+
+export const periodKey = (date: string, p: Period) =>
+  p === "diario" ? date : p === "mensual" ? date.slice(0, 7) : date.slice(0, 4);
+
+// Buckets en fecha local (toISODate), no UTC.
+export function trendBuckets(
+  p: Period,
+  now = new Date(),
+): { key: string; label: string }[] {
+  if (p === "diario")
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - (6 - i),
+      );
+      return { key: toISODate(d), label: `${d.getDate()}/${d.getMonth() + 1}` };
+    });
+  if (p === "mensual")
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return {
+        key: toISODate(d).slice(0, 7),
+        label: MONTH_LABELS[d.getMonth()],
+      };
+    });
+  return Array.from({ length: 5 }, (_, i) => {
+    const y = String(now.getFullYear() - (4 - i));
+    return { key: y, label: y };
+  });
+}
+
+const STOCK_LABEL: Record<StockStatus, string> = {
+  normal: "Normal",
+  bajo: "Stock bajo",
+  agotado: "Agotado",
+};
 
 const periodLabels: Record<Period, string> = {
   diario: "Hoy",
   mensual: "Este mes",
   anual: "Este año",
 };
-const periodKey = (date: string, period: Period) =>
-  period === "diario"
-    ? date
-    : period === "mensual"
-      ? date.slice(0, 7)
-      : date.slice(0, 4);
-
 function formatDate(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("es-VE");
-}
-
-function trendBuckets(period: Period) {
-  const now = new Date();
-  if (period === "diario") {
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(now);
-      date.setDate(now.getDate() - (6 - index));
-      return {
-        key: date.toISOString().slice(0, 10),
-        label: `${date.getDate()}/${date.getMonth() + 1}`,
-      };
-    });
-  }
-  if (period === "mensual") {
-    return Array.from({ length: 6 }, (_, index) => {
-      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
-      return {
-        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-        label: date
-          .toLocaleDateString("es-VE", { month: "short" })
-          .replace(".", ""),
-      };
-    });
-  }
-  return Array.from({ length: 5 }, (_, index) => {
-    const year = String(now.getFullYear() - (4 - index));
-    return { key: year, label: year };
-  });
-}
-
-function statusText(order: Order) {
-  return order.status === "procesando"
-    ? "procesando"
-    : order.status === "completado"
-      ? "completado"
-      : order.status;
 }
 
 const reportStyles = `*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -116,19 +132,14 @@ function exportReport({
   const inventoryRows = products
     .map((product) => {
       const sold = soldByProduct[product.id]?.quantity ?? 0;
-      const status =
-        product.stock === 0
-          ? "Agotado"
-          : product.stock <= product.minStock
-            ? "Stock bajo"
-            : "Normal";
+      const status = STOCK_LABEL[stockStatus(product)];
       return `<tr><td>${escapeHtml(product.name)}</td><td>${escapeHtml(product.sku)}</td><td>${escapeHtml(product.category)}</td><td>${product.stock}</td><td>${product.minStock}</td><td>${sold}</td><td class="right">${fmt(product.price * product.stock)}</td><td class="badge">${status}</td></tr>`;
     })
     .join("");
   const orderRows = periodOrders
     .map(
       (order) =>
-        `<tr><td>${escapeHtml(order.id)}</td><td>${escapeHtml(order.clientName)}</td><td>${order.items.map((item) => `${escapeHtml(item.product.name)} x${item.qty}`).join("<br>")}</td><td class="right">${fmt(order.total)}</td><td>${escapeHtml(statusText(order))}</td><td>${escapeHtml(formatDate(order.date))}</td></tr>`,
+        `<tr><td>${escapeHtml(order.id)}</td><td>${escapeHtml(order.clientName)}</td><td>${order.items.map((item) => `${escapeHtml(item.product.name)} x${item.qty}`).join("<br>")}</td><td class="right">${fmt(order.total)}</td><td>${escapeHtml(order.status)}</td><td>${escapeHtml(formatDate(order.date))}</td></tr>`,
     )
     .join("");
   const inventoryUnits = products.reduce(
@@ -140,9 +151,11 @@ function exportReport({
     0,
   );
   const lowStock = products.filter(
-    (product) => product.stock > 0 && product.stock <= product.minStock,
+    (product) => stockStatus(product) === "bajo",
   ).length;
-  const outOfStock = products.filter((product) => product.stock === 0).length;
+  const outOfStock = products.filter(
+    (product) => stockStatus(product) === "agotado",
+  ).length;
   const inventoryRotation = rotatingProducts.length
     ? rotatingProducts
         .map(
@@ -172,7 +185,7 @@ function exportReport({
   const title =
     type === "inventario" ? "Informe de Inventario" : "Informe de Ventas";
   printDocument(
-    `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>${reportStyles}</style></head><body><main class="page"><div class="top"><span>${escapeHtml(new Date().toLocaleString("es-VE"))}</span><span>${title} — Music&amp;Sport DSS</span></div><div class="header"><img class="logo" src="${logoImg}" alt="Music&Sport"><div><div class="brand">Music&amp;Sport DSS, C.A.</div><div class="subtitle">GESTIÓN DE INVENTARIO Y VENTAS</div></div></div><h1>${title}</h1><p class="period">Período: <strong>${label.toLowerCase()}</strong> (${new Date().toISOString().slice(0, 10)}) · Generado: ${escapeHtml(new Date().toLocaleString("es-VE"))}</p>${body}<div class="footer"><span>Music&amp;Sport DSS, C.A.</span><span>Sistema de gestión de inventario y ventas</span></div></main></body></html>`,
+    `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>${reportStyles}</style></head><body><main class="page"><div class="top"><span>${escapeHtml(new Date().toLocaleString("es-VE"))}</span><span>${title} — Music&amp;Sport DSS</span></div><div class="header"><img class="logo" src="${logoImg}" alt="Music&Sport"><div><div class="brand">Music&amp;Sport DSS, C.A.</div><div class="subtitle">GESTIÓN DE INVENTARIO Y VENTAS</div></div></div><h1>${title}</h1><p class="period">Período: <strong>${label.toLowerCase()}</strong> (${toISODate(new Date())}) · Generado: ${escapeHtml(new Date().toLocaleString("es-VE"))}</p>${body}<div class="footer"><span>Music&amp;Sport DSS, C.A.</span><span>Sistema de gestión de inventario y ventas</span></div></main></body></html>`,
     title,
   );
 }
@@ -188,10 +201,9 @@ export function AdminReports({
   const [period, setPeriod] = useState<Period>("diario");
   const [generated, setGenerated] = useState(false);
   const paid = orders.filter((order) => PAID_STATUSES.includes(order.status));
+  const today = currentPeriodKey(period);
   const periodOrders = orders.filter(
-    (order) =>
-      periodKey(order.date, period) ===
-      periodKey(new Date().toISOString().slice(0, 10), period),
+    (order) => periodKey(order.date, period) === today,
   );
   const periodPaid = periodOrders.filter((order) =>
     PAID_STATUSES.includes(order.status),
@@ -235,9 +247,11 @@ export function AdminReports({
     0,
   );
   const lowStock = products.filter(
-    (product) => product.stock > 0 && product.stock <= product.minStock,
+    (product) => stockStatus(product) === "bajo",
   ).length;
-  const outOfStock = products.filter((product) => product.stock === 0).length;
+  const outOfStock = products.filter(
+    (product) => stockStatus(product) === "agotado",
+  ).length;
 
   const generate = () => {
     setGenerated(true);
@@ -356,8 +370,8 @@ export function AdminReports({
         <>
           <p className="text-xs text-gray-400">
             Informe de {type === "ventas" ? "ventas" : "inventario"} ·{" "}
-            {periodLabels[period]} ({new Date().toISOString().slice(0, 10)}) ·
-            generado {new Date().toLocaleString("es-VE")}
+            {periodLabels[period]} ({toISODate(new Date())}) · generado{" "}
+            {new Date().toLocaleString("es-VE")}
           </p>
           {type === "inventario" ? (
             <>
@@ -411,12 +425,7 @@ export function AdminReports({
                       <tbody>
                         {products.map((product) => {
                           const sold = soldByProduct[product.id]?.quantity ?? 0;
-                          const status =
-                            product.stock === 0
-                              ? "Agotado"
-                              : product.stock <= product.minStock
-                                ? "Stock bajo"
-                                : "Normal";
+                          const status = STOCK_LABEL[stockStatus(product)];
                           return (
                             <tr
                               key={product.id}
@@ -491,7 +500,7 @@ export function AdminReports({
                   color="bg-[#1560BD]"
                   label="ÓRDENES PAGADAS"
                   value={String(periodPaid.length)}
-                  detail={`${periodPaid.length} emitidas`}
+                  detail={`de ${periodOrders.length} en el período`}
                 />
                 <MetricCard
                   icon={<Activity size={20} />}
@@ -626,9 +635,7 @@ export function AdminReports({
                             {fmt(order.total)}
                           </td>
                           <td className="px-5 py-3">
-                            <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                              {statusText(order)}
-                            </span>
+                            <StatusBadge status={order.status} />
                           </td>
                           <td className="px-5 py-3 text-xs text-gray-500">
                             {formatDate(order.date)}
