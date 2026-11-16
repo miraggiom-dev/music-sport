@@ -1099,6 +1099,15 @@ function AppMain({
       notify.error("No hay tasa de cambio activa para pagos en bolívares");
       return null;
     }
+    if (!currentClient.docId.trim() && billing.docId.trim()) {
+      setClients((cs) =>
+        cs.map((client) =>
+          client.id === currentClient.id
+            ? { ...client, docId: billing.docId.trim().toUpperCase() }
+            : client,
+        ),
+      );
+    }
     setProducts((ps) =>
       ps.map((p) => {
         const l = items.find((i) => i.product.id === p.id);
