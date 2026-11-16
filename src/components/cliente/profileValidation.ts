@@ -1,6 +1,7 @@
 import type { Client, Order } from "@/types";
 import {
   isValidEmail,
+  isValidDocId,
   isValidName,
   isValidPass,
   isValidPhone,
@@ -33,6 +34,15 @@ export const isDocumentLocked = (
   orders: Pick<Order, "clientId">[],
 ) => Boolean(client.docId.trim()) || hasIssuedOrder(client.id, orders);
 
+export const isCompleteClientProfile = (
+  client: Pick<Client, "name" | "docId" | "email" | "phone" | "address">,
+) =>
+  isValidName(client.name) &&
+  isValidDocId(client.docId) &&
+  isValidEmail(client.email) &&
+  isValidPhone(client.phone) &&
+  client.address.trim().length >= 10;
+
 export function validateClientProfile(
   form: ProfileForm,
   password: PasswordFields,
@@ -63,6 +73,8 @@ export function validateClientProfile(
     errors.phone = "Teléfono inválido (ej: 0414-1234567)";
   if (form.address.trim().length < 10)
     errors.address = "Dirección requerida (mín. 10 caracteres)";
+  if (form.docId.trim() && !isValidDocId(form.docId))
+    errors.docId = "Formato inválido (ej: V-123456789)";
 
   if (password.current || password.next || password.confirm) {
     if (password.current !== client.password)
