@@ -1,8 +1,26 @@
-import { useState } from "react";
-import { AlertTriangle, Coins, Plus, RefreshCw, Trash2, X } from "lucide-react";
-import { toast as notify } from "sonner";
 import type { ExchangeRate, InternalUser } from "@/types";
-import { RATE_STALE_HOURS, fmtDateTime, rateAgeHours } from "./shared";
+import { AlertTriangle, Coins, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { useState } from "react";
+import { toast as notify } from "sonner";
+import { fmtDateTime, RATE_STALE_HOURS, rateAgeHours } from "./shared";
+
+// Acepta "873,87", "1.234" y "1.234,56". La coma es el separador decimal;
+// los puntos solo se aceptan como separadores de miles.
+export function parseRateInput(raw: string): number | null {
+  const v = raw.trim();
+  let normalized: string;
+  if (
+    /^\d{1,3}(\.\d{3})+(,\d{1,4})?$/.test(v)
+  ) {
+    normalized = v.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,6}(,\d{1,4})?$/.test(v)) {
+    normalized = v.replace(",", ".");
+  } else {
+    return null;
+  }
+  const n = Number(normalized);
+  return n > 0 && n < 1_000_000 ? Math.round(n * 10000) / 10000 : null;
+}
 
 type RateModal = { rate?: ExchangeRate };
 
@@ -42,7 +60,7 @@ export function AdminRates({
   const save = () => {
     const nextErrors: Record<string, string> = {};
     const normalizedName = name.trim();
-    const parsedValue = Number(value.replace(",", "."));
+    const parsedValue = parseRateInput(value);
 
     if (normalizedName.length < 2 || normalizedName.length > 30) {
       nextErrors.name = "Entre 2 y 30 caracteres";
@@ -55,10 +73,10 @@ export function AdminRates({
     ) {
       nextErrors.name = "Ya existe una tasa con ese nombre";
     }
-    if (!/^\d{1,6}([.,]\d{1,4})?$/.test(value.trim()) || !(parsedValue > 0)) {
-      nextErrors.value = "Valor positivo, máx. 4 decimales";
+    if (parsedValue === null) {
+      nextErrors.value = "Valor positivo, máx. 4 decimales (ej. 873,87)";
     }
-    if (Object.keys(nextErrors).length) {
+    if (Object.keys(nextErrors).length || parsedValue === null) {
       setErrors(nextErrors);
       return;
     }
@@ -73,7 +91,7 @@ export function AdminRates({
             ? {
                 ...rate,
                 name: normalizedName,
-                value: Math.round(parsedValue * 10000) / 10000,
+                value: parsedValue,
                 ...stamp,
               }
             : rate,
@@ -83,7 +101,7 @@ export function AdminRates({
           {
             id: `T${Date.now()}`,
             name: normalizedName,
-            value: Math.round(parsedValue * 10000) / 10000,
+            value: parsedValue,
             active: false,
             ...stamp,
           },
@@ -162,14 +180,20 @@ export function AdminRates({
                   ) : (
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        const stamp = {
+                          updatedAt: new Date().toISOString(),
+                          userId: currentUserId,
+                        };
                         setRates(
-                          rates.map((item) => ({
-                            ...item,
-                            active: item.id === rate.id,
-                          })),
-                        )
-                      }
+                          rates.map((item) =>
+                            item.id === rate.id
+                              ? { ...item, active: true, ...stamp }
+                              : { ...item, active: false },
+                          ),
+                        );
+                        notify.success(`${rate.name} es ahora la tasa activa`);
+                      }}
                       className="rounded border px-2 py-1 text-xs"
                     >
                       Usar como activa

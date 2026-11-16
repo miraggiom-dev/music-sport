@@ -1,88 +1,31 @@
+import type { Order, Product } from "@/types";
 import {
-  BsRef,
-  StatusBadge,
-  Logo,
-  Input,
-  StatCard,
-  StatusFilter,
-  OrderDetailModal,
-  ConfirmDialog,
-  round2,
-  taxLabel,
-  ORDER_STATUSES,
-  printReceipt,
+  AlertTriangle,
+  Edit2,
+  Image as ImageIcon,
+  Plus,
+  Search,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+import { useState } from "react";
+import { toast as notify } from "sonner";
+import {
   FALLBACK_IMG,
-  NEXT_STATUS,
-  OPEN_STATUSES,
-  PAID_STATUSES,
-  RATE_STALE_HOURS,
-  currentPeriodKey,
-  escapeHtml,
   fmt,
-  fmtDateTime,
-  fmtDay,
-  fmtBs,
-  isValidEmail,
+  IMG_MAX_MB,
+  IMG_TYPES,
   isValidName,
-  isValidPass,
-  isValidPhone,
   isValidPrice,
   isValidSku,
   isValidStock,
   onImgError,
-  periodName,
-  rateAgeHours,
-  salesTrend,
-  statusLabel,
-  toISODate,
-  IMG_TYPES,
-  IMG_MAX_MB,
-  statusColor,
-  statusIcon,
+  OPEN_STATUSES,
+  round2,
 } from "./shared";
-import { Image as ImageIcon, Upload, Lock, Printer } from "lucide-react";
-import { useState } from "react";
-import {
-  AlertTriangle,
-  BarChart2,
-  CheckCircle,
-  Coins,
-  DollarSign,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Mail,
-  Package,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
-  Truck,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { toast as notify } from "sonner";
-import type {
-  ChangeStatus,
-  Client,
-  ExchangeRate,
-  InternalUser,
-  Order,
-  OrderStatus,
-  Period,
-  Product,
-  ReportType,
-  View,
-} from "@/types";
-import { printDocument } from "@/lib/generatePDF";
 function ProductModal({
   product,
   products,
@@ -131,7 +74,7 @@ function ProductModal({
       )
     )
       e.sku = "Este SKU ya está registrado. Modifica el producto existente.";
-    if (!Number.isFinite(form.price) || !isValidPrice(form.price))
+    if (!Number.isFinite(form.price) || !isValidPrice(round2(form.price)))
       e.price = "Mayor a 0";
     if (!Number.isFinite(form.stock) || !isValidStock(form.stock))
       e.stock = "Entero ≥ 0";
@@ -398,12 +341,6 @@ export function AdminProducts({
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("Todas");
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
 
   const filtered = products.filter((p) => {
     const matchSearch =
@@ -416,10 +353,10 @@ export function AdminProducts({
   const handleSave = (p: Product) => {
     if (products.find((x) => x.id === p.id)) {
       setProducts(products.map((x) => (x.id === p.id ? p : x)));
-      showToast("Producto actualizado correctamente");
+      notify.success("Producto actualizado correctamente");
     } else {
       setProducts([...products, p]);
-      showToast("Producto registrado correctamente");
+      notify.success("Producto registrado correctamente");
     }
     setModal({ open: false });
   };
@@ -427,24 +364,18 @@ export function AdminProducts({
   const handleDelete = (id: string) => {
     if (openOrders.some((o) => o.items.some((i) => i.product.id === id))) {
       setDeleteId(null);
-      showToast(
-        "No se puede eliminar: el producto está en órdenes abiertas. Desactívalo en su lugar.",
-      );
+      notify.error("No se puede eliminar el producto", {
+        description: "Está en órdenes abiertas. Desactívalo en su lugar.",
+      });
       return;
     }
     setProducts(products.filter((p) => p.id !== id));
     setDeleteId(null);
-    showToast("Producto eliminado");
+    notify.success("Producto eliminado");
   };
 
   return (
     <div className="space-y-4">
-      {toast && (
-        <div className="fixed top-[calc(1rem+var(--safe-top))] right-4 z-50 bg-[#000080] text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
-          <CheckCircle size={16} className="text-green-300" />
-          {toast}
-        </div>
-      )}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search
