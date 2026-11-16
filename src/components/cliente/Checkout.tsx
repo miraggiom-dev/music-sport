@@ -53,6 +53,7 @@ import type {
   AddToCart,
   Billing,
   CartItem,
+  DeliveryRecipient,
   ChangeStatus,
   Client,
   InternalUser,
@@ -99,6 +100,7 @@ import {
 } from "@/components/shared";
 import logoImg from "@/imports/Logo.png";
 import { isCompleteClientProfile } from "./profileValidation";
+import { safeImageSource } from "./productValidation";
 const PAY_METHODS = [
   "Transferencia",
   "Pago móvil",
@@ -143,7 +145,11 @@ function PayDetails({ method, total }: { method: string; total: number }) {
   const rows = PAY_DETAILS[method];
   if (!rows) return null;
   const copy = (v: string) => {
-    navigator.clipboard?.writeText(v).then(
+    if (!navigator.clipboard) {
+      notify.error("El navegador no permite copiar automáticamente");
+      return;
+    }
+    navigator.clipboard.writeText(v).then(
       () => notify.success("Copiado"),
       () => notify.error("No se pudo copiar"),
     );
@@ -213,6 +219,13 @@ export function Checkout({
   setView: (v: View) => void;
 }) {
   const rate = useRate();
+  const [otherRecipient, setOtherRecipient] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [clientRequestId] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `client-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const [form, setForm] = useState<Billing>({
     name: currentUser.name,
     docId: currentUser.docId,
@@ -237,6 +250,7 @@ export function Checkout({
   const tax = totals?.tax ?? 0;
   const total = totals?.total ?? 0;
   const needsRef = form.method !== "" && form.method !== "Efectivo en tienda";
+  const recipient = form.recipient ?? { name: "", phone: "", address: "" };
 
   if (cart.length === 0) {
     return (
@@ -254,11 +268,14 @@ export function Checkout({
   }
 
   const handleSubmit = () => {
+    if (submitting) return;
+    setSubmitting(true);
     if (!isCompleteClientProfile(currentUser)) {
       notify.error("Completa tu perfil antes de emitir una orden", {
         description:
           "Debes completar nombre, cédula/RIF, correo, teléfono y dirección.",
       });
+      setSubmitting(false);
       setView("client-profile");
       return;
     }
@@ -272,6 +289,15 @@ export function Checkout({
       e.phone = "Teléfono inválido (ej: 0414-1234567)";
     if (form.address.trim().length < 10)
       e.address = "Dirección de facturación completa (mín. 10 caracteres)";
+    if (otherRecipient) {
+      if (!isValidName(recipient.name))
+        e["recipient.name"] = "Nombre del receptor requerido";
+      if (!isValidPhone(recipient.phone))
+        e["recipient.phone"] = "Teléfono del receptor inválido";
+      if (recipient.address.trim().length < 10)
+        e["recipient.address"] =
+          "Dirección del receptor requerida (mín. 10 caracteres)";
+    }
     if (!form.method) e.method = "Selecciona un método de pago";
     else if (BS_METHODS.includes(form.method) && !rate)
       e.method =
@@ -281,18 +307,31 @@ export function Checkout({
         "Número de referencia o confirmación requerido (4-30 caracteres)";
     setErrors(e);
     if (Object.keys(e).length) {
+      setSubmitting(false);
       notify.error("Completa los campos marcados en rojo");
       return;
     }
     const order = placeOrder({
       ...form,
       reference: needsRef ? form.reference.trim() : "",
+      clientRequestId,
+      recipient: otherRecipient
+        ? {
+            name: recipient.name.trim(),
+            phone: recipient.phone.trim(),
+            address: recipient.address.trim(),
+          }
+        : undefined,
     });
-    if (order) setView("order-confirm");
+    if (order) {
+      setView("order-confirm");
+    } else {
+      setSubmitting(false);
+    }
   };
 
   const input = (
-    key: keyof Billing,
+    key: Exclude<keyof Billing, "recipient">,
     label: string,
     icon: JSX.Element,
     props: React.InputHTMLAttributes<HTMLInputElement> = {},
@@ -316,6 +355,40 @@ export function Checkout({
       )}
     </div>
   );
+  const recipientInput = (
+    key: keyof DeliveryRecipient,
+    label: string,
+    icon: JSX.Element,
+    props: React.InputHTMLAttributes<HTMLInputElement> = {},
+  ) => {
+    const errorKey = `recipient.${key}`;
+    return (
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 mb-1">
+          {icon}
+          {label}
+        </label>
+        <input
+          value={recipient[key]}
+          onChange={(ev) => {
+            setForm((previous) => ({
+              ...previous,
+              recipient: {
+                ...recipient,
+                [key]: ev.target.value,
+              },
+            }));
+            setErrors((previous) => ({ ...previous, [errorKey]: "" }));
+          }}
+          {...props}
+          className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${errors[errorKey] ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
+        />
+        {errors[errorKey] && (
+          <p className="text-red-500 text-xs mt-1">{errors[errorKey]}</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 sm:py-8">
@@ -337,22 +410,74 @@ export function Checkout({
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
             <h3 className="font-bold text-gray-800">Datos de facturación</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {input("name", "Nombre / Razón social *", <User size={13} />)}
+              {input("name", "Nombre / Razón social *", <User size={13} />, {
+                readOnly: true,
+              })}
               {input("docId", "Cédula / RIF *", <FileText size={13} />, {
                 placeholder: "V-12345678",
+                readOnly: true,
               })}
               {input("email", "Correo *", <Mail size={13} />, {
                 type: "email",
+                readOnly: true,
               })}
               {input("phone", "Teléfono *", <Phone size={13} />, {
                 type: "tel",
                 placeholder: "Ej: 0414-1234567",
+                readOnly: true,
               })}
             </div>
             {input(
               "address",
-              "Dirección de facturación y entrega *",
+              "Dirección de entrega *",
               <MapPin size={13} />,
+            )}
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={otherRecipient}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setOtherRecipient(checked);
+                  setForm((previous) => ({
+                    ...previous,
+                    recipient: checked
+                      ? previous.recipient ?? {
+                          name: "",
+                          phone: "",
+                          address: "",
+                        }
+                      : undefined,
+                  }));
+                  setErrors((previous) =>
+                    Object.fromEntries(
+                      Object.entries(previous).filter(
+                        ([key]) => !key.startsWith("recipient."),
+                      ),
+                    ),
+                  );
+                }}
+              />
+              ¿Lo recibirá otra persona?
+            </label>
+            {otherRecipient && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                {recipientInput(
+                  "name",
+                  "Nombre del receptor *",
+                  <User size={13} />,
+                )}
+                {recipientInput(
+                  "phone",
+                  "Teléfono del receptor *",
+                  <Phone size={13} />,
+                )}
+                {recipientInput(
+                  "address",
+                  "Dirección donde recibe *",
+                  <MapPin size={13} />,
+                )}
+              </div>
             )}
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
@@ -413,7 +538,7 @@ export function Checkout({
                 className="flex gap-3 py-2 border-b border-gray-50"
               >
                 <img
-                  src={i.product.image || FALLBACK_IMG}
+                  src={safeImageSource(i.product.image, FALLBACK_IMG)}
                   onError={onImgError}
                   alt={i.product.name}
                   className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0"
@@ -466,10 +591,11 @@ export function Checkout({
           </div>
           <button
             onClick={handleSubmit}
+            disabled={submitting}
             className="w-full py-3.5 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25] transition-colors flex items-center justify-center gap-2"
           >
             <CheckCircle size={18} />
-            Procesar orden
+            {submitting ? "Procesando..." : "Procesar orden"}
           </button>
           <button
             onClick={() => {

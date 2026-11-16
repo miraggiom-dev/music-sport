@@ -404,7 +404,11 @@ function PayDetails({ method, total }: { method: string; total: number }) {
   const rows = PAY_DETAILS[method];
   if (!rows) return null;
   const copy = (v: string) => {
-    navigator.clipboard?.writeText(v).then(
+    if (!navigator.clipboard) {
+      notify.error("El navegador no permite copiar automáticamente");
+      return;
+    }
+    navigator.clipboard.writeText(v).then(
       () => notify.success("Copiado"),
       () => notify.error("No se pudo copiar"),
     );
