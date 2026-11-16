@@ -1,86 +1,25 @@
+import type { ChangeStatus, Order, OrderStatus } from "@/types";
+import { Eye, Printer, Search, X } from "lucide-react";
+import { useState } from "react";
+import { toast as notify } from "sonner";
 import {
-  BsRef,
-  StatusBadge,
-  Logo,
-  Input,
-  StatCard,
   ConfirmDialog,
-  round2,
-  taxLabel,
+  fmt,
+  NEXT_STATUS,
   ORDER_STATUSES,
   printReceipt,
-  FALLBACK_IMG,
-  NEXT_STATUS,
-  OPEN_STATUSES,
-  PAID_STATUSES,
-  RATE_STALE_HOURS,
-  currentPeriodKey,
-  escapeHtml,
-  fmt,
-  fmtDateTime,
-  fmtDay,
-  fmtBs,
-  isValidEmail,
-  isValidName,
-  isValidPass,
-  isValidPhone,
-  isValidPrice,
-  isValidSku,
-  isValidStock,
-  onImgError,
-  periodName,
-  rateAgeHours,
-  salesTrend,
+  StatusBadge,
   statusLabel,
-  toISODate,
-  IMG_TYPES,
-  IMG_MAX_MB,
-  statusColor,
-  statusIcon,
+  taxLabel,
 } from "./shared";
-import { Image as ImageIcon, Upload, Lock, Printer } from "lucide-react";
-import { useState } from "react";
-import {
-  AlertTriangle,
-  BarChart2,
-  CheckCircle,
-  Coins,
-  DollarSign,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Mail,
-  Package,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
-  Truck,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { toast as notify } from "sonner";
-import type {
-  ChangeStatus,
-  Client,
-  ExchangeRate,
-  InternalUser,
-  Order,
-  OrderStatus,
-  Period,
-  Product,
-  ReportType,
-  View,
-} from "@/types";
-import { printDocument } from "@/lib/generatePDF";
+
+const orderNumber = (id: string) => Number(id.replace(/\D/g, "")) || 0;
+
+// Las órdenes solo guardan la fecha (sin hora): para el mismo día se
+// desempata por el número de orden, que es correlativo.
+export const newestFirst = (a: Order, b: Order) =>
+  b.date.localeCompare(a.date) || orderNumber(b.id) - orderNumber(a.id);
+
 function OrderDetailModal({
   order,
   onClose,
@@ -249,6 +188,11 @@ export function AdminOrders({
   const [statusFilter, setStatusFilter] = useState("todas");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [pending, setPending] = useState<{
+    order: Order;
+    next: OrderStatus;
+  } | null>(null);
+  const [reason, setReason] = useState("");
   const detail = orders.find((o) => o.id === detailId) ?? null;
   const filtered = orders
     .filter((o) => statusFilter === "todas" || o.status === statusFilter)
@@ -257,7 +201,7 @@ export function AdminOrders({
         .toLowerCase()
         .includes(search.toLowerCase()),
     )
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .sort(newestFirst);
 
   return (
     <div className="space-y-4">
@@ -351,7 +295,10 @@ export function AdminOrders({
                           value=""
                           onChange={(e) =>
                             e.target.value &&
-                            changeStatus(o.id, e.target.value as OrderStatus)
+                            setPending({
+                              order: o,
+                              next: e.target.value as OrderStatus,
+                            })
                           }
                           className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
                         >
@@ -387,6 +334,46 @@ export function AdminOrders({
       </div>
       {detail && (
         <OrderDetailModal order={detail} onClose={() => setDetailId(null)} />
+      )}
+      {pending && (
+        <ConfirmDialog
+          title={
+            pending.next === "cancelado"
+              ? "¿Cancelar orden?"
+              : "¿Cambiar estado?"
+          }
+          message={`${pending.order.id}: ${statusLabel[pending.order.status]} → ${statusLabel[pending.next]}`}
+          confirmLabel="Confirmar"
+          onCancel={() => {
+            setPending(null);
+            setReason("");
+          }}
+          onConfirm={() => {
+            if (pending.next === "cancelado" && !reason.trim()) {
+              notify.error("Indica el motivo de la cancelación");
+              return;
+            }
+            changeStatus(
+              pending.order.id,
+              pending.next,
+              pending.next === "cancelado"
+                ? { rejectReason: reason.trim() }
+                : {},
+            );
+            setPending(null);
+            setReason("");
+          }}
+        >
+          {pending.next === "cancelado" && (
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Motivo (lo verá el cliente)"
+              rows={2}
+              className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          )}
+        </ConfirmDialog>
       )}
     </div>
   );

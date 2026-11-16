@@ -1,87 +1,35 @@
-import {
-  BsRef,
-  StatusBadge,
-  Logo,
-  Input,
-  StatusFilter,
-  OrderDetailModal,
-  ConfirmDialog,
-  round2,
-  taxLabel,
-  ORDER_STATUSES,
-  printReceipt,
-  FALLBACK_IMG,
-  NEXT_STATUS,
-  OPEN_STATUSES,
-  PAID_STATUSES,
-  RATE_STALE_HOURS,
-  currentPeriodKey,
-  escapeHtml,
-  fmt,
-  fmtDateTime,
-  fmtDay,
-  fmtBs,
-  isValidEmail,
-  isValidName,
-  isValidPass,
-  isValidPhone,
-  isValidPrice,
-  isValidSku,
-  isValidStock,
-  onImgError,
-  periodName,
-  rateAgeHours,
-  salesTrend,
-  statusLabel,
-  toISODate,
-  IMG_TYPES,
-  IMG_MAX_MB,
-  statusColor,
-  statusIcon,
-} from "./shared";
-import { Image as ImageIcon, Upload, Lock, Printer } from "lucide-react";
-import { useState } from "react";
-import {
-  AlertTriangle,
-  BarChart2,
-  CheckCircle,
-  Coins,
-  DollarSign,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Mail,
-  Package,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
-  Truck,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { toast as notify } from "sonner";
-import type {
-  ChangeStatus,
-  Client,
-  ExchangeRate,
-  InternalUser,
-  Order,
-  OrderStatus,
-  Period,
-  Product,
-  ReportType,
-  View,
-} from "@/types";
-import { printDocument } from "@/lib/generatePDF";
+import type { Order, Period, Product, View } from "@/types";
+import { AlertTriangle, DollarSign, Package, ShoppingBag } from "lucide-react";
+import type { ReactNode } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { stockStatus } from "./Inventory";
+import { newestFirst } from "./Orders";
+import { periodKey, trendBuckets } from "./Reports";
+import { fmt, PAID_STATUSES, round2, StatusBadge } from "./shared";
+
+// Ventas pagadas agrupadas por período (reemplaza al salesTrend de
+// components/shared, que devolvía el mismo total en todas las barras).
+export function salesByPeriod(orders: Order[], p: Period, now = new Date()) {
+  const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
+  return trendBuckets(p, now).map((b) => {
+    const inBucket = paid.filter((o) => periodKey(o.date, p) === b.key);
+    return {
+      key: b.key,
+      label: b.label,
+      ventas: round2(inBucket.reduce((a, o) => a + o.total, 0)),
+      ordenes: inBucket.length,
+    };
+  });
+}
+
+// Redondea hacia arriba a 1, 2, 2.5 o 5 × 10^n para que el eje del
+// gráfico tenga marcas legibles (154.5 → 200 → $0, $50, $100…).
+export function niceCeil(n: number): number {
+  if (n <= 0) return 4;
+  const m = 10 ** Math.floor(Math.log10(n));
+  return [1, 2, 2.5, 5, 10].map((f) => f * m).find((v) => v >= n) ?? 10 * m;
+}
+
 function StatCard({
   label,
   value,
@@ -92,7 +40,7 @@ function StatCard({
   label: string;
   value: string;
   sub: string;
-  icon: JSX.Element;
+  icon: ReactNode;
   color: string;
 }) {
   return (
@@ -130,11 +78,16 @@ export function AdminDashboard({
   rateAlert: string;
   setView: (v: View) => void;
 }) {
-  const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
+  const lowStockCount = products.filter(
+    (p) => stockStatus(p) === "bajo",
+  ).length;
+  const outOfStockCount = products.filter(
+    (p) => stockStatus(p) === "agotado",
+  ).length;
   const pendingOrders = orders.filter((o) => o.status === "pendiente").length;
   const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
   const totalRevenue = paid.reduce((a, o) => a + o.total, 0);
-  const salesData = salesTrend(orders, "mensual").map((d) => ({
+  const salesData = salesByPeriod(orders, "mensual").map((d) => ({
     mes: d.label,
     ventas: d.ventas,
   }));
@@ -160,6 +113,7 @@ export function AdminDashboard({
             color: "#C8102E",
           },
         ];
+  const pieData = categoryData.filter((c) => c.value > 0);
   return (
     <div className="space-y-6">
       {rateAlert && (
@@ -201,7 +155,7 @@ export function AdminDashboard({
         <StatCard
           label="Stock bajo"
           value={String(lowStockCount)}
-          sub="Requieren reposición"
+          sub={`${outOfStockCount} agotados`}
           icon={<AlertTriangle size={20} />}
           color="#800000"
         />
@@ -232,7 +186,9 @@ export function AdminDashboard({
                   padR = 10;
                 const iW = W - padL - padR,
                   iH = H - padB - padT;
-                const maxV = Math.max(...salesData.map((d) => d.ventas), 1);
+                const maxV = niceCeil(
+                  Math.max(...salesData.map((d) => d.ventas)),
+                );
                 const barW = (iW / salesData.length) * 0.6;
                 const gap = iW / salesData.length;
                 return (
@@ -311,17 +267,16 @@ export function AdminDashboard({
             <ResponsiveContainer width="100%" height={230}>
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={pieData}
+                  strokeWidth={pieData.length > 1 ? 1 : 0}
                   cx="50%"
                   cy="50%"
-                  outerRadius={65}
+                  outerRadius={80}
                   dataKey="value"
-                  label={({ name, value }) => `${name} ${value}%`}
-                  labelLine
                   isAnimationActive={false}
                 >
-                  {categoryData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
+                  {pieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -337,7 +292,9 @@ export function AdminDashboard({
                   className="w-3 h-3 rounded-full"
                   style={{ background: c.color }}
                 />
-                <span className="text-xs text-gray-600">{c.name}</span>
+                <span className="text-xs text-gray-600">
+                  {c.name} {c.value}%
+                </span>
               </div>
             ))}
           </div>
@@ -370,8 +327,18 @@ export function AdminDashboard({
               </tr>
             </thead>
             <tbody>
+              {orders.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-10 text-center text-sm text-gray-400"
+                  >
+                    Todavía no hay órdenes
+                  </td>
+                </tr>
+              )}
               {[...orders]
-                .sort((a, b) => b.date.localeCompare(a.date))
+                .sort(newestFirst)
                 .slice(0, 5)
                 .map((o) => (
                   <tr
@@ -386,12 +353,7 @@ export function AdminDashboard({
                       {fmt(o.total)}
                     </td>
                     <td className="px-5 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[o.status]}`}
-                      >
-                        {statusIcon[o.status]}
-                        {o.status}
-                      </span>
+                      <StatusBadge status={o.status} />
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
                       {o.date}
@@ -400,305 +362,6 @@ export function AdminDashboard({
                 ))}
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProductModal({
-  product,
-  products,
-  onSave,
-  onClose,
-}: {
-  product?: Product;
-  products: Product[];
-  onSave: (p: Product) => void;
-  onClose: () => void;
-}) {
-  const blank: Product = {
-    id: `P${Date.now()}`,
-    name: "",
-    category: "Deportes",
-    subcategory: "",
-    price: 0,
-    stock: 0,
-    minStock: 2,
-    description: "",
-    image: "",
-    sku: "",
-    active: true,
-  };
-  const [form, setForm] = useState<Product>(product ?? blank);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    const others = products.filter((p) => p.id !== form.id);
-    if (!isValidName(form.name))
-      e.name = "Nombre requerido (mín. 3 caracteres)";
-    else if (
-      others.some(
-        (p) => p.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
-      )
-    )
-      e.name = "Ya existe un producto con este nombre. Modifica el existente.";
-    if (!form.sku.trim()) e.sku = "SKU requerido";
-    else if (!isValidSku(form.sku))
-      e.sku =
-        "SKU inválido (2-20 caracteres alfanuméricos, guiones permitidos)";
-    else if (
-      others.some(
-        (p) => p.sku.trim().toLowerCase() === form.sku.trim().toLowerCase(),
-      )
-    )
-      e.sku = "Este SKU ya está registrado. Modifica el producto existente.";
-    if (!Number.isFinite(form.price) || !isValidPrice(form.price))
-      e.price = "Mayor a 0";
-    if (!Number.isFinite(form.stock) || !isValidStock(form.stock))
-      e.stock = "Entero ≥ 0";
-    if (
-      !Number.isFinite(form.minStock) ||
-      !isValidStock(form.minStock) ||
-      form.minStock < 1
-    )
-      e.minStock = "Entero ≥ 1";
-    if (!form.subcategory.trim()) e.subcategory = "Subcategoría requerida";
-    if (form.description.trim().length < 10)
-      e.description = "Descripción requerida (mín. 10 caracteres)";
-    if (!form.image) e.image = "Debes cargar una fotografía del producto";
-    return e;
-  };
-
-  const handleSubmit = () => {
-    const e = validate();
-    if (Object.keys(e).length) {
-      setErrors(e);
-      return;
-    }
-    onSave({
-      ...form,
-      price: round2(form.price),
-      name: form.name.trim(),
-      sku: form.sku.trim().toUpperCase(),
-      subcategory: form.subcategory.trim(),
-      description: form.description.trim(),
-    });
-  };
-
-  const handleFile = (file: File | undefined) => {
-    if (!file) return;
-    if (!IMG_TYPES.includes(file.type)) {
-      setErrors((er) => ({
-        ...er,
-        image: "Formato no soportado. Usa JPG, PNG o WEBP.",
-      }));
-      return;
-    }
-    if (file.size > IMG_MAX_MB * 1024 * 1024) {
-      setErrors((er) => ({
-        ...er,
-        image: `La imagen excede el límite de ${IMG_MAX_MB} MB.`,
-      }));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setForm((f) => ({ ...f, image: reader.result as string }));
-      setErrors((er) => {
-        const { image, ...rest } = er;
-        return rest;
-      });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const field = (
-    label: string,
-    key: keyof Product,
-    type = "text",
-    extra?: object,
-  ) => (
-    <div>
-      <label className="block text-xs font-semibold text-gray-600 mb-1">
-        {label}
-      </label>
-      <input
-        type={type}
-        value={
-          typeof form[key] === "number" && Number.isNaN(form[key])
-            ? ""
-            : String(form[key])
-        }
-        onChange={(e) =>
-          setForm((f) => ({
-            ...f,
-            [key]:
-              type === "number"
-                ? e.target.value === ""
-                  ? NaN
-                  : Number(e.target.value)
-                : e.target.value,
-          }))
-        }
-        className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${errors[key] ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
-        {...extra}
-      />
-      {errors[key] && (
-        <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-full overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000080] rounded-t-2xl">
-          <h2
-            className="text-white font-bold"
-            style={{
-              fontFamily: "'Barlow Condensed',sans-serif",
-              fontSize: "1.2rem",
-            }}
-          >
-            {product ? "Editar producto" : "Nuevo producto"}
-          </h2>
-          <button onClick={onClose} className="text-white/70 hover:text-white">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="p-6 space-y-4">
-          {Object.keys(errors).length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600 flex items-center gap-2">
-              <AlertTriangle size={14} />
-              Revisa los campos resaltados antes de guardar.
-            </div>
-          )}
-          {field("Nombre del Producto *", "name")}
-          {field("SKU / Código *", "sku")}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Categoría *
-              </label>
-              <select
-                value={form.category}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    category: e.target.value as Product["category"],
-                  }))
-                }
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30"
-              >
-                <option>Deportes</option>
-                <option>Música</option>
-              </select>
-            </div>
-            {field("Subcategoría *", "subcategory")}
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {field("Precio (USD) *", "price", "number")}
-            {field("Stock *", "stock", "number")}
-            {field("Stock Mínimo *", "minStock", "number")}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Descripción *
-            </label>
-            <textarea
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-              className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 resize-none ${errors.description ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
-            />
-            {errors.description && (
-              <p className="text-red-500 text-xs mt-1">{errors.description}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-2">
-              Imagen del producto *{" "}
-              <span className="font-normal text-gray-400">
-                (JPG, PNG o WEBP · máx. {IMG_MAX_MB} MB)
-              </span>
-            </label>
-            <div className="flex gap-3 items-center">
-              {form.image ? (
-                <img
-                  src={form.image}
-                  alt="preview"
-                  className="w-16 h-16 rounded-lg object-cover bg-gray-100 shrink-0 border border-gray-200"
-                />
-              ) : (
-                <div
-                  className={`w-16 h-16 rounded-lg bg-gray-100 border-2 border-dashed ${errors.image ? "border-red-400" : "border-gray-300"} flex items-center justify-center shrink-0`}
-                >
-                  <ImageIcon size={22} className="text-gray-300" />
-                </div>
-              )}
-              <div className="flex-1 space-y-1">
-                <label className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-[#C8102E]/30 bg-[#C8102E]/5 hover:bg-[#C8102E]/10 transition-colors text-sm font-medium text-[#C8102E]">
-                  <Upload size={14} />
-                  {form.image ? "Cambiar imagen" : "Seleccionar imagen"}
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp"
-                    className="hidden"
-                    onChange={(e) => {
-                      handleFile(e.target.files?.[0]);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                {form.image && (
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, image: "" }))}
-                    className="w-full text-xs text-gray-400 hover:text-red-500 transition-colors text-center"
-                  >
-                    Eliminar imagen
-                  </button>
-                )}
-              </div>
-            </div>
-            {errors.image && (
-              <p className="text-red-500 text-xs mt-1">{errors.image}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-gray-600">
-              Estado:
-            </label>
-            <button
-              onClick={() => setForm((f) => ({ ...f, active: !f.active }))}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${form.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}
-            >
-              {form.active ? (
-                <ToggleRight size={14} />
-              ) : (
-                <ToggleLeft size={14} />
-              )}
-              {form.active ? "Activo" : "Inactivo"}
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-3 px-6 pb-6">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="flex-1 py-2.5 rounded-lg bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25] transition-colors"
-          >
-            {product ? "Guardar cambios" : "Crear producto"}
-          </button>
         </div>
       </div>
     </div>

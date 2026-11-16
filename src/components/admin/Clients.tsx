@@ -1,88 +1,8 @@
-import {
-  BsRef,
-  StatusBadge,
-  Logo,
-  Input,
-  StatCard,
-  StatusFilter,
-  OrderDetailModal,
-  ConfirmDialog,
-  round2,
-  taxLabel,
-  ORDER_STATUSES,
-  printReceipt,
-  FALLBACK_IMG,
-  NEXT_STATUS,
-  OPEN_STATUSES,
-  PAID_STATUSES,
-  RATE_STALE_HOURS,
-  currentPeriodKey,
-  escapeHtml,
-  fmt,
-  fmtDateTime,
-  fmtDay,
-  fmtBs,
-  isValidEmail,
-  isValidName,
-  isValidPass,
-  isValidPhone,
-  isValidPrice,
-  isValidSku,
-  isValidStock,
-  onImgError,
-  periodName,
-  rateAgeHours,
-  salesTrend,
-  statusLabel,
-  toISODate,
-  IMG_TYPES,
-  IMG_MAX_MB,
-  statusColor,
-  statusIcon,
-} from "./shared";
-import { Image as ImageIcon, Upload, Lock, Printer } from "lucide-react";
+import type { Client, Order } from "@/types";
+import { Search, Trash2 } from "lucide-react";
 import { useState } from "react";
-import {
-  AlertTriangle,
-  BarChart2,
-  CheckCircle,
-  Coins,
-  DollarSign,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Mail,
-  Package,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
-  Truck,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { toast as notify } from "sonner";
-import type {
-  ChangeStatus,
-  Client,
-  ExchangeRate,
-  InternalUser,
-  Order,
-  OrderStatus,
-  Period,
-  Product,
-  ReportType,
-  View,
-} from "@/types";
-import { printDocument } from "@/lib/generatePDF";
+import { ConfirmDialog, fmt, OPEN_STATUSES, PAID_STATUSES } from "./shared";
 export function AdminClients({
   clients,
   setClients,
@@ -106,11 +26,18 @@ export function AdminClients({
     }
     setToDelete(c);
   };
-  const filtered = clients.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase()),
+  const q = search.trim().toLowerCase();
+  const filtered = clients.filter((c) =>
+    [c.name, c.email, c.docId, c.phone].some((v) =>
+      v.toLowerCase().includes(q),
+    ),
   );
+  const ordersByClient = new Map<string, Order[]>();
+  for (const o of orders) {
+    const list = ordersByClient.get(o.clientId);
+    if (list) list.push(o);
+    else ordersByClient.set(o.clientId, [o]);
+  }
   return (
     <div className="space-y-4">
       <div className="relative">
@@ -121,7 +48,7 @@ export function AdminClients({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar cliente..."
+          placeholder="Buscar por nombre, correo, cédula/RIF o teléfono..."
           className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none"
         />
       </div>
@@ -150,7 +77,7 @@ export function AdminClients({
             </thead>
             <tbody>
               {filtered.map((c) => {
-                const clientOrders = orders.filter((o) => o.clientId === c.id);
+                const clientOrders = ordersByClient.get(c.id) ?? [];
                 const totalSpent = clientOrders
                   .filter((o) => PAID_STATUSES.includes(o.status))
                   .reduce((a, o) => a + o.total, 0);
