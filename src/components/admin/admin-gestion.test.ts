@@ -92,7 +92,8 @@ describe("escapeHtml (PDF de informes)", () => {
 describe("parseRateInput (Tasas)", () => {
   it.each([
     ["873,87", 873.87],
-    ["873.87", 873.87],
+    ["873.87", null],
+    ["1.234", 1234],
     ["1.234,56", 1234.56],
     ["1.234.567", null], // supera el máximo
     ["36,12345", null],

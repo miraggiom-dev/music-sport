@@ -4,17 +4,16 @@ import { useState } from "react";
 import { toast as notify } from "sonner";
 import { fmtDateTime, RATE_STALE_HOURS, rateAgeHours } from "./shared";
 
-// Acepta "873,87", "873.87" y "1.234,56". Un solo punto sin coma se toma
-// como decimal ("1.234" = 1,234), igual que antes.
+// Acepta "873,87", "1.234" y "1.234,56". La coma es el separador decimal;
+// los puntos solo se aceptan como separadores de miles.
 export function parseRateInput(raw: string): number | null {
   const v = raw.trim();
   let normalized: string;
   if (
-    /^\d{1,3}(\.\d{3})+,\d{1,4}$/.test(v) ||
-    /^\d{1,3}(\.\d{3}){2,}$/.test(v)
+    /^\d{1,3}(\.\d{3})+(,\d{1,4})?$/.test(v)
   ) {
     normalized = v.replace(/\./g, "").replace(",", ".");
-  } else if (/^\d{1,6}([.,]\d{1,4})?$/.test(v)) {
+  } else if (/^\d{1,6}(,\d{1,4})?$/.test(v)) {
     normalized = v.replace(",", ".");
   } else {
     return null;
