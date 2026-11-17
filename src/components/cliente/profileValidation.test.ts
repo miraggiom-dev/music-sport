@@ -40,6 +40,44 @@ describe("isDocumentLocked", () => {
 });
 
 describe("validateClientProfile", () => {
+  it("rechaza nombres, teléfonos y direcciones incompletos", () => {
+    const errors = validateClientProfile(
+      { ...client, name: "A", phone: "12", address: "corta" },
+      emptyPassword,
+      client,
+      [client],
+      [],
+    );
+
+    expect(errors.name).toBe("Nombre requerido (mín. 3 caracteres)");
+    expect(errors.phone).toBe("Teléfono inválido (ej: 0414-1234567)");
+    expect(errors.address).toBe("Dirección requerida (mín. 10 caracteres)");
+  });
+
+  it("rechaza formatos inválidos de cédula o RIF", () => {
+    const errors = validateClientProfile(
+      { ...client, docId: "123456789" },
+      emptyPassword,
+      client,
+      [client],
+      [],
+    );
+
+    expect(errors.docId).toBe("Formato inválido (ej: V-123456789)");
+  });
+
+  it("permite dejar la cédula o RIF vacía antes de emitir una orden", () => {
+    const errors = validateClientProfile(
+      { ...client, docId: "" },
+      emptyPassword,
+      client,
+      [client],
+      [],
+    );
+
+    expect(errors.docId).toBeUndefined();
+  });
+
   it("rechaza datos de contacto inválidos", () => {
     const errors = validateClientProfile(
       { ...client, email: "incorrecto", address: "corta" },

@@ -103,6 +103,7 @@ import {
   isDocumentLocked,
   validateClientProfile,
   type ProfileForm,
+  type ProfileErrorKey,
   type ProfileErrors,
 } from "./profileValidation";
 
@@ -154,7 +155,16 @@ export function ClientProfile({
 
   const handleSave = () => {
     const email = form.email.trim().toLowerCase();
-    const e = validateClientProfile(form, pass, client, clients, takenEmails);
+    const formToValidate = documentLocked
+      ? { ...form, docId: client.docId }
+      : form;
+    const e = validateClientProfile(
+      formToValidate,
+      pass,
+      client,
+      clients,
+      takenEmails,
+    );
     setErrors(e);
     if (Object.keys(e).length) {
       requestAnimationFrame(() => {
@@ -167,19 +177,25 @@ export function ClientProfile({
     if (saving) return;
 
     setSaving(true);
-    onSave({
-      ...client,
-      ...form,
-      email,
-      name: form.name.trim(),
-      address: form.address.trim(),
-      password: pass.next || client.password,
-    });
-    setPass({ current: "", next: "", confirm: "" });
-    notify.success("Perfil actualizado", {
-      description: "Tus próximas órdenes usarán estos datos de contacto.",
-    });
-    setSaving(false);
+    try {
+      onSave({
+        ...client,
+        ...form,
+        docId: documentLocked ? client.docId : form.docId.trim().toUpperCase(),
+        email,
+        name: form.name.trim(),
+        address: form.address.trim(),
+        password: pass.next || client.password,
+      });
+      setPass({ current: "", next: "", confirm: "" });
+      notify.success("Perfil actualizado", {
+        description: "Tus próximas órdenes usarán estos datos de contacto.",
+      });
+    } catch {
+      notify.error("No se pudo actualizar el perfil");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -198,7 +214,7 @@ export function ClientProfile({
   };
 
   const fieldInput = (
-    key: string,
+    key: ProfileErrorKey,
     label: string,
     value: string,
     onChange: (v: string) => void,
@@ -212,7 +228,15 @@ export function ClientProfile({
       <Input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          setErrors((previous) => {
+            if (!previous[key]) return previous;
+            const next = { ...previous };
+            delete next[key];
+            return next;
+          });
+          onChange(e.target.value);
+        }}
         autoComplete={options.autoComplete}
         disabled={options.disabled}
         aria-invalid={Boolean(errors[key])}
@@ -246,7 +270,8 @@ export function ClientProfile({
             </h2>
             <p className="text-white/60 text-sm truncate">{client.email}</p>
             <p className="text-white/40 text-xs">
-              Miembro desde {client.createdAt}
+              Miembro desde{" "}
+              {client.createdAt ? fmtDay(client.createdAt) : "Fecha no disponible"}
             </p>
           </div>
         </div>
@@ -391,6 +416,12 @@ export function ClientProfile({
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => {
             setConfirmDelete(false);
+            if (openOrders.length) {
+              notify.error("No puedes eliminar tu cuenta todavía", {
+                description: `Tienes ${openOrders.length} orden(es) sin resolver.`,
+              });
+              return;
+            }
             onDelete();
           }}
         />
