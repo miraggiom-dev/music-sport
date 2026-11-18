@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hasIssuedOrder,
+  isCompleteClientProfile,
   isDocumentLocked,
   validateClientProfile,
   type ProfileForm,
@@ -36,6 +37,13 @@ describe("isDocumentLocked", () => {
 
   it("permite el documento de una cuenta básica sin órdenes", () => {
     expect(isDocumentLocked({ id: "C001", docId: "" }, [])).toBe(false);
+  });
+});
+
+describe("isCompleteClientProfile", () => {
+  it("detecta perfiles incompletos antes de emitir una orden", () => {
+    expect(isCompleteClientProfile({ ...client, docId: "" })).toBe(false);
+    expect(isCompleteClientProfile(client)).toBe(true);
   });
 });
 
@@ -89,6 +97,18 @@ describe("validateClientProfile", () => {
 
     expect(errors.email).toBe("Correo electrónico inválido");
     expect(errors.address).toBe("Dirección requerida (mín. 10 caracteres)");
+  });
+
+  it("explica el formato requerido para la cédula o RIF", () => {
+    const errors = validateClientProfile(
+      { ...client, docId: "123456789" },
+      emptyPassword,
+      client,
+      [client],
+      [],
+    );
+
+    expect(errors.docId).toBe("Formato inválido (ej: V-123456789)");
   });
 
   it("valida la confirmación aunque no se haya escrito la contraseña actual", () => {

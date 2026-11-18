@@ -34,6 +34,15 @@ export const isDocumentLocked = (
   orders: Pick<Order, "clientId">[],
 ) => Boolean(client.docId.trim()) || hasIssuedOrder(client.id, orders);
 
+export const isCompleteClientProfile = (
+  client: Pick<Client, "name" | "docId" | "email" | "phone" | "address">,
+) =>
+  isValidName(client.name) &&
+  isValidDocId(client.docId) &&
+  isValidEmail(client.email) &&
+  isValidPhone(client.phone) &&
+  client.address.trim().length >= 10;
+
 export function validateClientProfile(
   form: ProfileForm,
   password: PasswordFields,

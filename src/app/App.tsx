@@ -88,7 +88,12 @@ import {
 import { printDocument } from "@/lib/generatePDF";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RateContext } from "@/contexts/RateContext";
-import { pathForView, viewForPath } from "./routeConfig";
+import {
+  pathForProduct,
+  pathForView,
+  productIdForPath,
+  viewForPath,
+} from "./routeConfig";
 import {
   ROLE_VIEWS,
   GUEST_VIEWS,
@@ -147,6 +152,10 @@ import {
   ClientProfile,
   ClientOrders,
 } from "@/components/cliente";
+import {
+  isValidCatalogQuantity,
+} from "@/components/cliente/catalogFilters";
+import { getValidProducts } from "@/components/cliente/productValidation";
 import { StatusBadge, Logo, Input, StatCard } from "@/components/shared";
 const LoginView = lazy(() => import("./auth/login/Lazy"));
 const RegisterView = lazy(() => import("./auth/LazyRegister"));
@@ -823,7 +832,9 @@ function AppMain({
     notice,
     setNotice,
   } = useAuth();
-  const [products, setProducts] = useState<Product[]>(productService.list());
+  const [products, setProducts] = useState<Product[]>(() =>
+    getValidProducts(productService.list()),
+  );
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCarts, setSavedCarts] = useState<Record<string, CartItem[]>>({});
   const [orders, setOrders] = useState<Order[]>(orderService.list());
@@ -846,7 +857,7 @@ function AppMain({
           : "";
   const [lockouts, setLockouts] = useState<Record<string, Lockout>>({});
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
+    () => productIdForPath(location.pathname),
   );
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
@@ -874,6 +885,12 @@ function AppMain({
     const nextPath = pathForView(nextView);
     if (location.pathname !== nextPath) navigate(nextPath);
   };
+  const openProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setViewRaw("product-detail");
+    const nextPath = pathForProduct(productId);
+    if (location.pathname !== nextPath) navigate(nextPath);
+  };
   const setView = (v: View) => {
     if (!canSee(v, role)) {
       if (!role && ROLE_VIEWS.client.includes(v))
@@ -887,7 +904,12 @@ function AppMain({
   useEffect(() => {
     const routedView = viewForPath(location.pathname);
     if (routedView && routedView !== view) setViewRaw(routedView);
-  }, [location.pathname]);
+    if (routedView === "product-detail") {
+      setSelectedProductId(productIdForPath(location.pathname));
+    } else if (selectedProductId) {
+      setSelectedProductId(null);
+    }
+  }, [location.pathname, selectedProductId, view]);
   useEffect(() => {
     if (canSee(view, role)) return;
     const nextView = homeFor(role);
@@ -1026,6 +1048,10 @@ function AppMain({
   const emailTaken = (email: string) => !!findAccount(email);
 
   const addToCart: AddToCart = (productId, qty) => {
+    if (!isValidCatalogQuantity(qty)) {
+      notify.error("La cantidad debe ser un entero positivo");
+      return false;
+    }
     const p = products.find((x) => x.id === productId);
     if (!p || !p.active || p.stock === 0) {
       notify.error("Producto no disponible");
@@ -1324,7 +1350,7 @@ function AppMain({
       cart={cart}
       addToCart={addToCart}
       setView={setView}
-      setSelectedProductId={setSelectedProductId}
+      openProduct={openProduct}
     />
   );
   return (
@@ -1343,17 +1369,14 @@ function AppMain({
             <CatalogFooter setView={setView} />
           </>
         )}
-        {view === "product-detail" &&
-          (selectedProduct ? (
-            <ProductDetail
-              product={selectedProduct}
-              cart={cart}
-              addToCart={addToCart}
-              setView={setView}
-            />
-          ) : (
-            catalog
-          ))}
+        {view === "product-detail" && (
+          <ProductDetail
+            product={selectedProduct}
+            cart={cart}
+            addToCart={addToCart}
+            setView={setView}
+          />
+        )}
         {view === "cart" && (
           <CartView
             cart={cart}
