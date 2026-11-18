@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -19,6 +24,7 @@ import {
   Layers,
   LogOut,
   Mail,
+  MessageCircle,
   MapPin,
   Menu,
   Minus,
@@ -68,10 +74,6 @@ import {
   fmtBs,
   fmtDateTime,
   fmtDay,
-  isValidEmail,
-  isValidName,
-  isValidPass,
-  isValidPhone,
   isValidSku,
   onImgError,
   PAID_STATUSES,
@@ -93,11 +95,20 @@ import {
   toISODate,
   ConfirmDialog,
   BS_METHODS,
-  isValidDocId,
   useRate,
   rateNote,
 } from "@/components/shared";
 import logoImg from "@/imports/Logo.png";
+import {
+  isDocumentLocked,
+  validateClientProfile,
+  type ProfileForm,
+  type ProfileErrorKey,
+  type ProfileErrors,
+} from "./profileValidation";
+
+const SUPPORT_WHATSAPP_URL = "https://wa.me/584246243241";
+
 export function ClientProfile({
   client,
   clients,
@@ -113,53 +124,83 @@ export function ClientProfile({
   onSave: (c: Client) => void;
   onDelete: () => void;
 }) {
-  const [form, setForm] = useState(client);
+  const [form, setForm] = useState<ProfileForm>(() => ({
+    name: client.name,
+    email: client.email,
+    phone: client.phone,
+    address: client.address,
+    docId: client.docId,
+  }));
   const [pass, setPass] = useState({ current: "", next: "", confirm: "" });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ProfileErrors>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const documentLocked = isDocumentLocked(client, orders);
   const openOrders = orders.filter(
     (o) => o.clientId === client.id && OPEN_STATUSES.includes(o.status),
   );
 
-  const handleSave = () => {
-    const e: Record<string, string> = {};
-    const email = form.email.trim().toLowerCase();
-    if (!isValidName(form.name))
-      e.name = "Nombre requerido (mín. 3 caracteres)";
-    if (!isValidEmail(email)) e.email = "Correo electrónico inválido";
-    else if (
-      clients.some(
-        (c) => c.id !== client.id && c.email.toLowerCase() === email,
-      ) ||
-      takenEmails.includes(email)
-    )
-      e.email = "El correo ya está en uso";
-    if (!isValidPhone(form.phone))
-      e.phone = "Teléfono inválido (ej: 0414-1234567)";
-    if (form.address.trim().length < 10)
-      e.address = "Dirección requerida (mín. 10 caracteres)";
-    if (form.docId && !isValidDocId(form.docId))
-      e.docId = "Formato inválido (ej: V-12345678)";
-    if (pass.next || pass.current) {
-      if (pass.current !== client.password)
-        e.current = "La contraseña actual no es correcta";
-      if (!isValidPass(pass.next)) e.next = "Entre 6 y 50 caracteres";
-      if (pass.next !== pass.confirm)
-        e.confirm = "Las contraseñas no coinciden";
-    }
-    setErrors(e);
-    if (Object.keys(e).length) return;
-    onSave({
-      ...form,
-      email,
-      name: form.name.trim(),
-      address: form.address.trim(),
-      password: pass.next || client.password,
+  useEffect(() => {
+    setForm({
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      address: client.address,
+      docId: client.docId,
     });
     setPass({ current: "", next: "", confirm: "" });
-    notify.success("Perfil actualizado", {
-      description: "Tus próximas órdenes usarán estos datos de contacto.",
-    });
+    setErrors({});
+  }, [client]);
+
+  const handleSave = () => {
+    const email = form.email.trim().toLowerCase();
+    const formToValidate = documentLocked
+      ? { ...form, docId: client.docId }
+      : form;
+    const e = validateClientProfile(
+      formToValidate,
+      pass,
+      client,
+      clients,
+      takenEmails,
+    );
+    setErrors(e);
+    if (Object.keys(e).length) {
+      requestAnimationFrame(() => {
+        formRef.current
+          ?.querySelector<HTMLInputElement>('[aria-invalid="true"]')
+          ?.focus();
+      });
+      return;
+    }
+    if (saving) return;
+
+    setSaving(true);
+    try {
+      onSave({
+        ...client,
+        ...form,
+        docId: documentLocked ? client.docId : form.docId.trim().toUpperCase(),
+        email,
+        name: form.name.trim(),
+        address: form.address.trim(),
+        password: pass.next || client.password,
+      });
+      setPass({ current: "", next: "", confirm: "" });
+      notify.success("Perfil actualizado", {
+        description: "Tus próximas órdenes usarán estos datos de contacto.",
+      });
+    } catch {
+      notify.error("No se pudo actualizar el perfil");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    handleSave();
   };
 
   const tryDelete = () => {
@@ -173,11 +214,12 @@ export function ClientProfile({
   };
 
   const fieldInput = (
-    key: string,
+    key: ProfileErrorKey,
     label: string,
     value: string,
     onChange: (v: string) => void,
     type = "text",
+    options: { autoComplete?: string; disabled?: boolean } = {},
   ) => (
     <div key={key}>
       <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -186,11 +228,25 @@ export function ClientProfile({
       <Input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${errors[key] ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
+        onChange={(e) => {
+          setErrors((previous) => {
+            if (!previous[key]) return previous;
+            const next = { ...previous };
+            delete next[key];
+            return next;
+          });
+          onChange(e.target.value);
+        }}
+        autoComplete={options.autoComplete}
+        disabled={options.disabled}
+        aria-invalid={Boolean(errors[key])}
+        aria-describedby={errors[key] ? `${key}-error` : undefined}
+        className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${errors[key] ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
       />
       {errors[key] && (
-        <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
+        <p id={`${key}-error`} className="text-red-500 text-xs mt-1">
+          {errors[key]}
+        </p>
       )}
     </div>
   );
@@ -214,24 +270,45 @@ export function ClientProfile({
             </h2>
             <p className="text-white/60 text-sm truncate">{client.email}</p>
             <p className="text-white/40 text-xs">
-              Miembro desde {client.createdAt}
+              Miembro desde{" "}
+              {client.createdAt ? fmtDay(client.createdAt) : "Fecha no disponible"}
             </p>
           </div>
         </div>
-        <div className="p-6 space-y-4">
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          className="p-6 space-y-4"
+          aria-busy={saving}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {fieldInput("name", "Nombre completo *", form.name, (v) =>
               setForm((p) => ({ ...p, name: v })),
+              "text",
+              { autoComplete: "name" },
             )}
-            {fieldInput("docId", "Cédula / RIF", form.docId, (v) =>
-              setForm((p) => ({ ...p, docId: v })),
-            )}
+            <div>
+              {fieldInput(
+                "docId",
+                "Cédula / RIF",
+                form.docId,
+                (v) => setForm((p) => ({ ...p, docId: v })),
+                "text",
+                { disabled: documentLocked },
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {documentLocked
+                  ? "La cédula/RIF está bloqueada. ¿Te equivocaste al escribirla? Contacta a soporte para corregirla."
+                  : "Puedes editarla hasta completar tu primera orden."}
+              </p>
+            </div>
             {fieldInput(
               "email",
               "Correo electrónico *",
               form.email,
               (v) => setForm((p) => ({ ...p, email: v })),
               "email",
+              { autoComplete: "email" },
             )}
             {fieldInput(
               "phone",
@@ -239,10 +316,13 @@ export function ClientProfile({
               form.phone,
               (v) => setForm((p) => ({ ...p, phone: v })),
               "tel",
+              { autoComplete: "tel" },
             )}
           </div>
           {fieldInput("address", "Dirección de envío *", form.address, (v) =>
             setForm((p) => ({ ...p, address: v })),
+            "text",
+            { autoComplete: "street-address" },
           )}
           <div className="pt-2 border-t border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -256,6 +336,7 @@ export function ClientProfile({
                 pass.current,
                 (v) => setPass((p) => ({ ...p, current: v })),
                 "password",
+                { autoComplete: "current-password" },
               )}
               {fieldInput(
                 "next",
@@ -263,6 +344,7 @@ export function ClientProfile({
                 pass.next,
                 (v) => setPass((p) => ({ ...p, next: v })),
                 "password",
+                { autoComplete: "new-password" },
               )}
               {fieldInput(
                 "confirm",
@@ -270,16 +352,43 @@ export function ClientProfile({
                 pass.confirm,
                 (v) => setPass((p) => ({ ...p, confirm: v })),
                 "password",
+                { autoComplete: "new-password" },
               )}
             </div>
           </div>
           <button
-            onClick={handleSave}
-            className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25] transition-colors flex items-center justify-center gap-2 mt-2"
+            type="submit"
+            disabled={saving}
+            className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25] transition-colors flex items-center justify-center gap-2 mt-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save size={16} />
-            Guardar cambios
+            {saving ? "Guardando..." : "Guardar cambios"}
           </button>
+        </form>
+        <div className="mx-6 mb-6 rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <MessageCircle
+              size={20}
+              className="mt-0.5 shrink-0 text-green-600"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="text-sm font-semibold text-green-900">
+                ¿Necesitas corregir tu cédula/RIF?
+              </p>
+              <p className="text-xs text-green-800 mt-1">
+                Contacta a soporte por WhatsApp para solicitar la corrección.
+              </p>
+            </div>
+          </div>
+          <a
+            href={SUPPORT_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shrink-0"
+          >
+            Abrir WhatsApp
+          </a>
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-red-100 p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
@@ -305,7 +414,16 @@ export function ClientProfile({
           message="Perderás el acceso y tu sesión se cerrará. Esta acción no se puede deshacer."
           confirmLabel="Eliminar cuenta"
           onCancel={() => setConfirmDelete(false)}
-          onConfirm={onDelete}
+          onConfirm={() => {
+            setConfirmDelete(false);
+            if (openOrders.length) {
+              notify.error("No puedes eliminar tu cuenta todavía", {
+                description: `Tienes ${openOrders.length} orden(es) sin resolver.`,
+              });
+              return;
+            }
+            onDelete();
+          }}
         />
       )}
     </div>

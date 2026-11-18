@@ -253,6 +253,21 @@ export function Checkout({
   }
 
   const handleSubmit = () => {
+    const profileComplete =
+      isValidName(currentUser.name) &&
+      isValidDocId(currentUser.docId) &&
+      isValidEmail(currentUser.email) &&
+      isValidPhone(currentUser.phone) &&
+      currentUser.address.trim().length >= 10;
+    if (!profileComplete) {
+      notify.error("Completa tu perfil antes de emitir una orden", {
+        description:
+          "Debes completar nombre, cédula/RIF, correo, teléfono y dirección.",
+      });
+      setView("client-profile");
+      return;
+    }
+
     const e: Record<string, string> = {};
     if (!isValidName(form.name)) e.name = "Nombre o razón social requerido";
     if (!isValidDocId(form.docId))
