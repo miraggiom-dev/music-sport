@@ -7,12 +7,22 @@ export const round2 = (n: number) =>
   Math.round((n + Number.EPSILON) * 100) / 100;
 export const fmtBs = (n: number) =>
   `Bs. ${round2(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const parseLocalDate = (value: string) => {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly)
+    return new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+    );
+  return new Date(value);
+};
 export const fmtDay = (iso: string) => {
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 export const fmtDateTime = (iso: string) =>
-  `${fmtDay(iso)} ${new Date(iso).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}`;
+  `${fmtDay(iso)} ${parseLocalDate(iso).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}`;
 export const RATE_STALE_HOURS = 24;
 export const rateAgeHours = (r: ExchangeRate) =>
   (Date.now() - new Date(r.updatedAt).getTime()) / 3600000;
@@ -275,9 +285,9 @@ export function OrderDetailModal({
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between text-sm">
               <span>
-                {item.product.name} × {item.qty}
+                {item.productName ?? item.product.name} × {item.qty}
               </span>
-              <span>{fmt(item.product.price * item.qty)}</span>
+              <span>{fmt((item.unitPrice ?? item.product.price) * item.qty)}</span>
             </div>
           ))}
           <div className="font-bold">Total: {fmt(order.total)}</div>
@@ -333,11 +343,11 @@ export async function printReceipt(order: import("@/types").Order) {
       .map(
         (item) => `
     <tr>
-      <td>${escapeHtml(item.product.name)}</td>
-      <td>${escapeHtml(item.product.sku)}</td>
+      <td>${escapeHtml(item.productName ?? item.product.name)}</td>
+      <td>${escapeHtml(item.sku ?? item.product.sku)}</td>
       <td class="center">${item.qty}</td>
-      <td class="right">${money(item.product.price)}</td>
-      <td class="right">${money(item.product.price * item.qty)}</td>
+      <td class="right">${money(item.unitPrice ?? item.product.price)}</td>
+      <td class="right">${money((item.unitPrice ?? item.product.price) * item.qty)}</td>
     </tr>`,
       )
       .join("");
@@ -386,13 +396,14 @@ export async function printReceipt(order: import("@/types").Order) {
     <div class="topline"><span>${escapeHtml(fmtDateTime(paymentDate))}</span><span>Recibo ${escapeHtml(receiptNumber)}</span></div>
     <div class="brand"><img src="${logoImg}" alt="Music&Sport"><div><div class="brand-name">Music&amp;Sport DSS, C.A.</div><div class="brand-subtitle">GESTIÓN DE INVENTARIO Y VENTAS</div></div></div>
     <h1>Recibo de pago ${escapeHtml(receiptNumber)}</h1>
-    <p class="meta">Orden ${escapeHtml(order.id)} · Emitido ${escapeHtml(order.date)} · Pago aprobado ${escapeHtml(paymentDate)} · Estado: ${escapeHtml(statusLabel[order.status])}</p>
+    <p class="meta">Orden ${escapeHtml(order.id)} · Emitido ${escapeHtml(fmtDay(order.date))} · Pago aprobado ${escapeHtml(fmtDay(paymentDate))} · Estado: ${escapeHtml(statusLabel[order.status])}</p>
     <section class="customer">
       <div class="field"><span class="label">Facturar a</span><span class="value">${escapeHtml(b.name)}</span></div>
       <div class="field"><span class="label">Cédula / RIF</span><span class="value">${escapeHtml(b.docId || "No especificado")}</span></div>
       <div class="field"><span class="label">Correo</span><span class="value">${escapeHtml(b.email)}</span></div>
       <div class="field"><span class="label">Teléfono</span><span class="value">${escapeHtml(b.phone || "No especificado")}</span></div>
       <div class="field"><span class="label">Dirección</span><span class="value">${escapeHtml(b.address || order.address || "No especificada")}</span></div>
+      ${b.recipient ? `<div class="field"><span class="label">Recibe</span><span class="value">${escapeHtml(b.recipient.name)} · ${escapeHtml(b.recipient.phone)} · ${escapeHtml(b.recipient.address)}</span></div>` : ""}
       <div class="field"><span class="label">Método de pago</span><span class="value">${escapeHtml(b.method)}${b.reference ? ` · Ref. ${escapeHtml(b.reference)}` : ""}</span></div>
     </section>
     <div class="section-title">DETALLE</div>

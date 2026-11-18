@@ -156,7 +156,12 @@ import {
   isValidCatalogQuantity,
 } from "@/components/cliente/catalogFilters";
 import { getValidProducts } from "@/components/cliente/productValidation";
-import { StatusBadge, Logo, Input, StatCard } from "@/components/shared";
+import {
+  StatusBadge,
+  Logo,
+  Input,
+  StatCard,
+} from "@/components/shared";
 const LoginView = lazy(() => import("./auth/login/Lazy"));
 const RegisterView = lazy(() => import("./auth/LazyRegister"));
 import { round2, fmt, fmtBs } from "@/lib/formatCurrency";
@@ -175,6 +180,16 @@ function PageLoading() {
 function toISODate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+function parseLocalDate(value: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly)
+    return new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+    );
+  return new Date(value);
+}
 const taxLabel = (t: TaxType) => `${t} (${TAX_RATES[t] * 100}%)`;
 // Todos los montos se guardan en USD con 2 decimales (DECIMAL(10,2)); los bolívares solo se calculan para mostrar
 // Pago en bolívares → IVA 16%; pago en dólares → IGTF 3% (sin IVA)
@@ -187,11 +202,11 @@ const calcTotals = (items: CartItem[], taxType: TaxType) => {
 };
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmtDay = (iso: string) => {
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 const fmtDateTime = (iso: string) =>
-  `${fmtDay(iso)} ${new Date(iso).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}`;
+  `${fmtDay(iso)} ${parseLocalDate(iso).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}`;
 const rateAgeHours = (r: ExchangeRate) =>
   (Date.now() - new Date(r.updatedAt).getTime()) / 3600000;
 const rateNote = (r: RateSnap) => `Tasa ${r.name} al ${fmtDay(r.updatedAt)}`;
@@ -1077,6 +1092,18 @@ function AppMain({
 
   const placeOrder = (billing: Billing): Order | null => {
     if (!currentClient) return null;
+    const existingOrder = billing.clientRequestId
+      ? orders.find(
+          (order) =>
+            order.clientId === currentClient.id &&
+            order.clientRequestId === billing.clientRequestId,
+        )
+      : undefined;
+    if (existingOrder) {
+      setLastOrderId(existingOrder.id);
+      setCart([]);
+      return existingOrder;
+    }
     const lines = cart.map((i) => ({
       product: products.find((p) => p.id === i.product.id),
       qty: i.qty,
@@ -1091,28 +1118,56 @@ function AppMain({
       goTo("cart");
       return null;
     }
-    const items = lines.map((l) => ({ product: l.product!, qty: l.qty }));
+    const items = lines.map((l) => ({
+      product: l.product!,
+      qty: l.qty,
+      productId: l.product!.id,
+      productName: l.product!.name,
+      sku: l.product!.sku,
+      unitPrice: l.product!.price,
+    }));
+    const now = new Date().toISOString();
     const num =
       Math.max(
         1000,
         ...orders.map((o) => Number(o.id.replace(/\D/g, "")) || 0),
       ) + 1;
+    const normalizedBilling: Billing = {
+      ...billing,
+      name: currentClient.name,
+      docId: currentClient.docId,
+      email: currentClient.email,
+      phone: currentClient.phone,
+      address: billing.address.trim(),
+      reference: billing.reference.trim(),
+      recipient: billing.recipient
+        ? {
+            name: billing.recipient.name.trim(),
+            phone: billing.recipient.phone.trim(),
+            address: billing.recipient.address.trim(),
+          }
+        : undefined,
+    };
     const order: Order = {
       id: `ORD-${num}`,
       clientId: currentClient.id,
-      clientName: billing.name,
-      clientEmail: billing.email,
+      clientName: currentClient.name,
+      clientEmail: currentClient.email,
       items,
       ...calcTotals(
         items,
-        BS_METHODS.includes(billing.method) ? "IVA" : "IGTF",
+        BS_METHODS.includes(normalizedBilling.method) ? "IVA" : "IGTF",
       ),
       status: "pendiente",
       date: toISODate(new Date()),
-      address: billing.address,
-      phone: billing.phone,
-      billing,
-      currency: BS_METHODS.includes(billing.method) ? "VES" : "USD",
+      clientRequestId: billing.clientRequestId,
+      createdAt: now,
+      updatedAt: now,
+      address:
+        normalizedBilling.recipient?.address ?? normalizedBilling.address,
+      phone: normalizedBilling.recipient?.phone ?? normalizedBilling.phone,
+      billing: normalizedBilling,
+      currency: BS_METHODS.includes(normalizedBilling.method) ? "VES" : "USD",
       rate: activeRate
         ? {
             name: activeRate.name,
@@ -1150,6 +1205,8 @@ function AppMain({
   const changeStatus: ChangeStatus = (id, status, extra = {}) => {
     const o = orders.find((x) => x.id === id);
     if (!o || o.status === status) return;
+    if (!NEXT_STATUS[o.status].includes(status)) return;
+    const now = new Date().toISOString();
     if (status === "cancelado" && o.status !== "cancelado") {
       setProducts((ps) =>
         ps.map((p) => {
@@ -1158,10 +1215,18 @@ function AppMain({
         }),
       );
     }
-    const patch: Partial<Order> = { ...extra, status };
-    if (status === "procesando" && !o.receiptNo) {
-      patch.receiptNo = patch.receiptNo ?? `REC-${o.id.replace(/\D/g, "")}`;
-      patch.paidAt = patch.paidAt ?? toISODate(new Date());
+    const patch: Partial<Order> = { ...extra, status, updatedAt: now };
+    if (status === "cancelado") {
+      patch.cancelledAt = now;
+      patch.cancelledBy = role === "client" ? "client" : "staff";
+    }
+    if (status === "procesando") {
+      patch.reviewedAt = patch.reviewedAt ?? now;
+      patch.reviewedBy = patch.reviewedBy ?? currentUser?.id ?? "staff";
+      if (!o.receiptNo) {
+        patch.receiptNo = patch.receiptNo ?? `REC-${o.id.replace(/\D/g, "")}`;
+        patch.paidAt = patch.paidAt ?? toISODate(new Date());
+      }
     }
     setOrders((os) => os.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };

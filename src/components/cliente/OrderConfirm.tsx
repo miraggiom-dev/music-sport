@@ -105,6 +105,20 @@ export function OrderConfirm({
   order: Order | null;
   setView: (v: View) => void;
 }) {
+  if (!order) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <p className="text-gray-500">No hay una orden disponible para mostrar.</p>
+        <button
+          onClick={() => setView("client-orders")}
+          className="mt-4 px-6 py-3 rounded-xl bg-[#C8102E] text-white text-sm font-semibold"
+        >
+          Ver mis órdenes
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto px-4 py-16 sm:py-20 text-center">
       <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
@@ -116,8 +130,7 @@ export function OrderConfirm({
       >
         ¡Orden emitida!
       </h1>
-      {order && (
-        <div className="inline-flex flex-col items-center bg-white border border-gray-100 rounded-xl px-6 py-3 mb-4">
+      <div className="inline-flex flex-col items-center bg-white border border-gray-100 rounded-xl px-6 py-3 mb-4">
           <span className="text-xs text-gray-400">Número de seguimiento</span>
           <span className="font-mono font-bold text-lg text-[#000080]">
             {order.id}
@@ -125,8 +138,7 @@ export function OrderConfirm({
           <span className="text-xs text-gray-500 mt-1">
             Total {fmt(order.total)} · {statusLabel[order.status]}
           </span>
-        </div>
-      )}
+      </div>
       <p className="text-gray-500 mb-6">
         Los vendedores fueron notificados. Recibirás tu recibo cuando se apruebe
         el pago.
