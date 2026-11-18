@@ -11,6 +11,7 @@ import {
   StatusBadge,
   statusLabel,
   taxLabel,
+  orderLineUnitPrice,
 } from "./shared";
 
 const orderNumber = (id: string) => Number(id.replace(/\D/g, "")) || 0;
@@ -106,10 +107,10 @@ function OrderDetailModal({
                   className="flex justify-between items-center gap-3 text-sm py-1.5 border-b border-gray-50"
                 >
                   <span className="text-gray-700">
-                    {item.product.name} × {item.qty}
+                    {item.productName ?? item.product.name} × {item.qty}
                   </span>
                   <span className="font-semibold shrink-0">
-                    {fmt(item.product.price * item.qty)}
+                    {fmt(orderLineUnitPrice(item) * item.qty)}
                   </span>
                 </div>
               ))}

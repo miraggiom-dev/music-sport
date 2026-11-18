@@ -325,7 +325,7 @@ export function Catalog({
           )}
         </div>
         <div className="flex gap-2">
-          {["Todos", "Deportes", "Música"].map((c) => (
+          {(["Todos", "Deportes", "Música"] as CatalogCategory[]).map((c) => (
             <button
               key={c}
               onClick={() => {

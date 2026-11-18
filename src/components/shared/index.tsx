@@ -1,10 +1,12 @@
-import type { ExchangeRate, Order, OrderStatus, Period } from "@/types";
+import type { ExchangeRate, Order, OrderLine, OrderStatus, Period } from "@/types";
 export function toISODate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 export const fmt = (n: number) => `$${n.toFixed(2)}`;
 export const round2 = (n: number) =>
   Math.round((n + Number.EPSILON) * 100) / 100;
+export const orderLineUnitPrice = (item: OrderLine) =>
+  Number.isFinite(item.unitPrice) ? item.unitPrice : item.product.price;
 export const fmtBs = (n: number) =>
   `Bs. ${round2(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const parseLocalDate = (value: string) => {

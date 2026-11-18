@@ -356,10 +356,11 @@ async function printReceipt(order: Order) {
   const r = order.rate;
   const m = (usd: number) => (inBs && r ? fmtBs(usd * r.value) : fmt(usd));
   const rows = order.items
-    .map(
-      (i) =>
-        `<tr><td>${escapeHtml(i.product.name)}</td><td>${escapeHtml(i.product.sku)}</td><td class="c">${i.qty}</td><td class="r">${m(i.product.price)}</td><td class="r">${m(i.product.price * i.qty)}</td></tr>`,
-    )
+    .map((i) => {
+      const unitPrice =
+        Number.isFinite(i.unitPrice) ? i.unitPrice : i.product.price;
+      return `<tr><td>${escapeHtml(i.productName ?? i.product.name)}</td><td>${escapeHtml(i.sku ?? i.product.sku)}</td><td class="c">${i.qty}</td><td class="r">${m(unitPrice)}</td><td class="r">${m(unitPrice * i.qty)}</td></tr>`;
+    })
     .join("");
   const footNote = !r
     ? ""
@@ -918,18 +919,26 @@ function AppMain({
   };
   useEffect(() => {
     const routedView = viewForPath(location.pathname);
-    if (routedView && routedView !== view) setViewRaw(routedView);
-    if (routedView === "product-detail") {
-      setSelectedProductId(productIdForPath(location.pathname));
-    } else if (selectedProductId) {
-      setSelectedProductId(null);
+    if (!routedView) return;
+
+    if (!canSee(routedView, role)) {
+      const nextView = homeFor(role);
+      setViewRaw(nextView);
+      navigate(pathForView(nextView), { replace: true });
+      return;
     }
-  }, [location.pathname, selectedProductId, view]);
-  useEffect(() => {
-    if (canSee(view, role)) return;
-    const nextView = homeFor(role);
-    if (view !== nextView) goTo(nextView);
-  }, [view, role]);
+
+    setViewRaw((current) => current === routedView ? current : routedView);
+    if (routedView === "product-detail") {
+      setSelectedProductId((current) =>
+        current === productIdForPath(location.pathname)
+          ? current
+          : productIdForPath(location.pathname),
+      );
+    } else {
+      setSelectedProductId((current) => (current === null ? current : null));
+    }
+  }, [location.pathname, role, navigate]);
   useEffect(() => {
     // usuario suspendido o eliminado mientras tenía sesión
     if (
@@ -1219,6 +1228,8 @@ function AppMain({
     if (status === "cancelado") {
       patch.cancelledAt = now;
       patch.cancelledBy = role === "client" ? "client" : "staff";
+      patch.receiptNo = undefined;
+      patch.paidAt = undefined;
     }
     if (status === "procesando") {
       patch.reviewedAt = patch.reviewedAt ?? now;
