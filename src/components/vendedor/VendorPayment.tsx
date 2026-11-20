@@ -113,16 +113,19 @@ export function VendorPayment({
   const [reasonErr, setReasonErr] = useState("");
 
   const approve = () => changeStatus(order.id, "procesando");
-  const reject = () => {
+  const reject = async () => {
     if (reason.trim().length < 5) {
       setReasonErr("Indica el motivo del rechazo (mín. 5 caracteres)");
       return;
     }
-    changeStatus(order.id, "cancelado", { rejectReason: reason.trim() });
-    setRejecting(false);
-    setView("vendor-orders");
+    try {
+      await changeStatus(order.id, "cancelado", { rejectReason: reason.trim().substring(0, 255) });
+      setRejecting(false);
+      setView("vendor-orders");
+    } catch (err) {
+      setReasonErr("Hubo un error al rechazar el pago. Intenta de nuevo.");
+    }
   };
-
   if (order.status !== "pendiente") {
     const approved = PAID_STATUSES.includes(order.status);
     return (
