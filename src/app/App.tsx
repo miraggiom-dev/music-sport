@@ -855,7 +855,7 @@ function AppMain({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCarts, setSavedCarts] = useState<Record<string, CartItem[]>>({});
   const [orders, setOrders] = useState<Order[]>(orderService.list());
-  const [clients, setClients] = useState<Client[]>(clientService.list());
+  const [clients, setClients] = useState<Client[]>([]);
   const [internalUsers, setInternalUsers] = useState<InternalUser[]>(initUsers);
   const activeRate = rates.find((r) => r.active) ?? null;
   const [clock, setClock] = useState(Date.now());
