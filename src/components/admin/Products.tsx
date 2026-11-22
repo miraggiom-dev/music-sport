@@ -11,8 +11,9 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast as notify } from "sonner";
+import { productService } from "@/services/productService";
 import {
   FALLBACK_IMG,
   fmt,
@@ -26,6 +27,7 @@ import {
   OPEN_STATUSES,
   round2,
 } from "./shared";
+
 function ProductModal({
   product,
   products,
@@ -50,53 +52,76 @@ function ProductModal({
     sku: "",
     active: true,
   };
+
   const [form, setForm] = useState<Product>(product ?? blank);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
     const e: Record<string, string> = {};
     const others = products.filter((p) => p.id !== form.id);
-    if (!isValidName(form.name))
+
+    if (!isValidName(form.name)) {
       e.name = "Nombre requerido (mín. 3 caracteres)";
-    else if (
+    } else if (
       others.some(
         (p) => p.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
       )
-    )
+    ) {
       e.name = "Ya existe un producto con este nombre. Modifica el existente.";
-    if (!form.sku.trim()) e.sku = "SKU requerido";
-    else if (!isValidSku(form.sku))
+    }
+
+    if (!form.sku.trim()) {
+      e.sku = "SKU requerido";
+    } else if (!isValidSku(form.sku)) {
       e.sku =
         "SKU inválido (2-20 caracteres alfanuméricos, guiones permitidos)";
-    else if (
+    } else if (
       others.some(
         (p) => p.sku.trim().toLowerCase() === form.sku.trim().toLowerCase(),
       )
-    )
+    ) {
       e.sku = "Este SKU ya está registrado. Modifica el producto existente.";
-    if (!Number.isFinite(form.price) || !isValidPrice(round2(form.price)))
+    }
+
+    if (!Number.isFinite(form.price) || !isValidPrice(round2(form.price))) {
       e.price = "Mayor a 0";
-    if (!Number.isFinite(form.stock) || !isValidStock(form.stock))
+    }
+
+    if (!Number.isFinite(form.stock) || !isValidStock(form.stock)) {
       e.stock = "Entero ≥ 0";
+    }
+
     if (
       !Number.isFinite(form.minStock) ||
       !isValidStock(form.minStock) ||
       form.minStock < 1
-    )
+    ) {
       e.minStock = "Entero ≥ 1";
-    if (!form.subcategory.trim()) e.subcategory = "Subcategoría requerida";
-    if (form.description.trim().length < 10)
+    }
+
+    if (!form.subcategory.trim()) {
+      e.subcategory = "Subcategoría requerida";
+    }
+
+    if (form.description.trim().length < 10) {
       e.description = "Descripción requerida (mín. 10 caracteres)";
-    if (!form.image) e.image = "Debes cargar una fotografía del producto";
+    }
+
+    if (!form.image) {
+      e.image = "Debes cargar una fotografía del producto";
+    }
+
     return e;
   };
 
   const handleSubmit = () => {
     const e = validate();
+
     if (Object.keys(e).length) {
       setErrors(e);
       return;
     }
+
     onSave({
       ...form,
       price: round2(form.price),
@@ -109,6 +134,7 @@ function ProductModal({
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
+
     if (!IMG_TYPES.includes(file.type)) {
       setErrors((er) => ({
         ...er,
@@ -116,6 +142,7 @@ function ProductModal({
       }));
       return;
     }
+
     if (file.size > IMG_MAX_MB * 1024 * 1024) {
       setErrors((er) => ({
         ...er,
@@ -123,7 +150,9 @@ function ProductModal({
       }));
       return;
     }
+
     const reader = new FileReader();
+
     reader.onloadend = () => {
       setForm((f) => ({ ...f, image: reader.result as string }));
       setErrors((er) => {
@@ -131,6 +160,7 @@ function ProductModal({
         return rest;
       });
     };
+
     reader.readAsDataURL(file);
   };
 
@@ -144,6 +174,7 @@ function ProductModal({
       <label className="block text-xs font-semibold text-gray-600 mb-1">
         {label}
       </label>
+
       <input
         type={type}
         value={
@@ -162,9 +193,14 @@ function ProductModal({
                 : e.target.value,
           }))
         }
-        className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${errors[key] ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
+        className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${
+          errors[key]
+            ? "border-red-400 bg-red-50"
+            : "border-gray-200 bg-gray-50"
+        }`}
         {...extra}
       />
+
       {errors[key] && (
         <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
       )}
@@ -184,10 +220,15 @@ function ProductModal({
           >
             {product ? "Editar producto" : "Nuevo producto"}
           </h2>
-          <button onClick={onClose} className="text-white/70 hover:text-white">
+
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white"
+          >
             <X size={18} />
           </button>
         </div>
+
         <div className="p-6 space-y-4">
           {Object.keys(errors).length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600 flex items-center gap-2">
@@ -195,13 +236,16 @@ function ProductModal({
               Revisa los campos resaltados antes de guardar.
             </div>
           )}
+
           {field("Nombre del Producto *", "name")}
           {field("SKU / Código *", "sku")}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Categoría *
               </label>
+
               <select
                 value={form.category}
                 onChange={(e) =>
@@ -216,29 +260,41 @@ function ProductModal({
                 <option>Música</option>
               </select>
             </div>
+
             {field("Subcategoría *", "subcategory")}
           </div>
+
           <div className="grid grid-cols-3 gap-3">
             {field("Precio (USD) *", "price", "number")}
             {field("Stock *", "stock", "number")}
             {field("Stock Mínimo *", "minStock", "number")}
           </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               Descripción *
             </label>
+
             <textarea
               value={form.description}
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
               rows={3}
-              className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 resize-none ${errors.description ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
+              className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 resize-none ${
+                errors.description
+                  ? "border-red-400 bg-red-50"
+                  : "border-gray-200 bg-gray-50"
+              }`}
             />
+
             {errors.description && (
-              <p className="text-red-500 text-xs mt-1">{errors.description}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.description}
+              </p>
             )}
           </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-2">
               Imagen del producto *{" "}
@@ -246,24 +302,29 @@ function ProductModal({
                 (JPG, PNG o WEBP · máx. {IMG_MAX_MB} MB)
               </span>
             </label>
+
             <div className="flex gap-3 items-center">
               {form.image ? (
                 <img
                   src={form.image}
-                  alt="preview"
+                  alt="Vista previa"
                   className="w-16 h-16 rounded-lg object-cover bg-gray-100 shrink-0 border border-gray-200"
                 />
               ) : (
                 <div
-                  className={`w-16 h-16 rounded-lg bg-gray-100 border-2 border-dashed ${errors.image ? "border-red-400" : "border-gray-300"} flex items-center justify-center shrink-0`}
+                  className={`w-16 h-16 rounded-lg bg-gray-100 border-2 border-dashed ${
+                    errors.image ? "border-red-400" : "border-gray-300"
+                  } flex items-center justify-center shrink-0`}
                 >
                   <ImageIcon size={22} className="text-gray-300" />
                 </div>
               )}
+
               <div className="flex-1 space-y-1">
                 <label className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-[#C8102E]/30 bg-[#C8102E]/5 hover:bg-[#C8102E]/10 transition-colors text-sm font-medium text-[#C8102E]">
                   <Upload size={14} />
                   {form.image ? "Cambiar imagen" : "Seleccionar imagen"}
+
                   <input
                     type="file"
                     accept=".jpg,.jpeg,.png,.webp"
@@ -274,6 +335,7 @@ function ProductModal({
                     }}
                   />
                 </label>
+
                 {form.image && (
                   <button
                     type="button"
@@ -285,17 +347,25 @@ function ProductModal({
                 )}
               </div>
             </div>
+
             {errors.image && (
               <p className="text-red-500 text-xs mt-1">{errors.image}</p>
             )}
           </div>
+
           <div className="flex items-center gap-3">
             <label className="text-xs font-semibold text-gray-600">
               Estado:
             </label>
+
             <button
+              type="button"
               onClick={() => setForm((f) => ({ ...f, active: !f.active }))}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${form.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                form.active
+                  ? "bg-green-100 text-green-700"
+                  : "bg-gray-100 text-gray-500"
+              }`}
             >
               {form.active ? (
                 <ToggleRight size={14} />
@@ -306,6 +376,7 @@ function ProductModal({
             </button>
           </div>
         </div>
+
         <div className="flex gap-3 px-6 pb-6">
           <button
             onClick={onClose}
@@ -313,6 +384,7 @@ function ProductModal({
           >
             Cancelar
           </button>
+
           <button
             onClick={handleSubmit}
             className="flex-1 py-2.5 rounded-lg bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25] transition-colors"
@@ -335,43 +407,109 @@ export function AdminProducts({
   orders: Order[];
 }) {
   const openOrders = orders.filter((o) => OPEN_STATUSES.includes(o.status));
+
   const [modal, setModal] = useState<{ open: boolean; product?: Product }>({
     open: false,
   });
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("Todas");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    productService
+      .getAll()
+      .then((data) => {
+        if (mounted) setProducts(data);
+      })
+      .catch((error: Error) => {
+        if (mounted) {
+          notify.error("No se pudieron cargar los productos", {
+            description: error.message,
+          });
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [setProducts]);
 
   const filtered = products.filter((p) => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase());
+
     const matchCat = cat === "Todas" || p.category === cat;
+
     return matchSearch && matchCat;
   });
 
-  const handleSave = (p: Product) => {
-    if (products.find((x) => x.id === p.id)) {
-      setProducts(products.map((x) => (x.id === p.id ? p : x)));
-      notify.success("Producto actualizado correctamente");
-    } else {
-      setProducts([...products, p]);
-      notify.success("Producto registrado correctamente");
+  const handleSave = async (p: Product) => {
+    if (saving) return;
+
+    setSaving(true);
+
+    try {
+      const existing = products.find((x) => x.id === p.id);
+
+      if (existing) {
+        const updated = await productService.update(p.id, p);
+
+        setProducts(products.map((x) => (x.id === p.id ? updated : x)));
+        notify.success("Producto actualizado correctamente");
+      } else {
+        const created = await productService.create(p);
+
+        setProducts([...products, created]);
+        notify.success("Producto registrado correctamente");
+      }
+
+      setModal({ open: false });
+    } catch (error) {
+      notify.error("No se pudo guardar el producto", {
+        description:
+          error instanceof Error ? error.message : "Error inesperado.",
+      });
+    } finally {
+      setSaving(false);
     }
-    setModal({ open: false });
   };
 
-  const handleDelete = (id: string) => {
-    if (openOrders.some((o) => o.items.some((i) => i.product.id === id))) {
+  const handleDelete = async (id: string) => {
+    if (
+      openOrders.some((o) => o.items.some((i) => i.product.id === id))
+    ) {
       setDeleteId(null);
+
       notify.error("No se puede eliminar el producto", {
         description: "Está en órdenes abiertas. Desactívalo en su lugar.",
       });
+
       return;
     }
-    setProducts(products.filter((p) => p.id !== id));
-    setDeleteId(null);
-    notify.success("Producto eliminado");
+
+    try {
+      await productService.remove(id);
+
+      setProducts(products.filter((p) => p.id !== id));
+      setDeleteId(null);
+
+      notify.success("Producto eliminado");
+    } catch (error) {
+      setDeleteId(null);
+
+      notify.error("No se pudo eliminar el producto", {
+        description:
+          error instanceof Error ? error.message : "Error inesperado.",
+      });
+    }
   };
 
   return (
@@ -382,6 +520,7 @@ export function AdminProducts({
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
           />
+
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -389,6 +528,7 @@ export function AdminProducts({
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30"
           />
         </div>
+
         <select
           value={cat}
           onChange={(e) => setCat(e.target.value)}
@@ -398,6 +538,7 @@ export function AdminProducts({
           <option>Deportes</option>
           <option>Música</option>
         </select>
+
         <button
           onClick={() => setModal({ open: true })}
           className="flex items-center gap-2 px-4 py-2.5 bg-[#C8102E] text-white rounded-xl text-sm font-semibold hover:bg-[#a80d25] transition-colors"
@@ -430,80 +571,121 @@ export function AdminProducts({
                 ))}
               </tr>
             </thead>
+
             <tbody>
-              {filtered.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-t border-gray-50 hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={p.image || FALLBACK_IMG}
-                        alt={p.name}
-                        className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0"
-                        onError={onImgError}
-                      />
-                      <div>
-                        <p className="font-medium text-gray-800 text-sm">
-                          {p.name}
-                        </p>
-                        <p className="text-xs text-gray-400">{p.subcategory}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                    {p.sku}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.category === "Música" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}
-                    >
-                      {p.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">
-                    {fmt(p.price)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`font-semibold ${p.stock === 0 ? "text-red-600" : p.stock <= p.minStock ? "text-amber-600" : "text-green-600"}`}
-                    >
-                      {p.stock === 0 ? "Agotado" : p.stock}
-                    </span>
-                    {p.stock <= p.minStock && p.stock > 0 && (
-                      <AlertTriangle
-                        size={12}
-                        className="inline ml-1 text-amber-500"
-                      />
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}
-                    >
-                      {p.active ? "Activo" : "Inactivo"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setModal({ open: true, product: p })}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteId(p.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+              {loading && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-10 text-center text-gray-400 text-sm"
+                  >
+                    Cargando productos...
                   </td>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
+              )}
+
+              {!loading &&
+                filtered.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-t border-gray-50 hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={p.image || FALLBACK_IMG}
+                          alt={p.name}
+                          className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0"
+                          onError={onImgError}
+                        />
+
+                        <div>
+                          <p className="font-medium text-gray-800 text-sm">
+                            {p.name}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {p.subcategory}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                      {p.sku}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          p.category === "Música"
+                            ? "bg-red-50 text-red-700"
+                            : "bg-blue-50 text-blue-700"
+                        }`}
+                      >
+                        {p.category}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3 font-semibold text-gray-800">
+                      {fmt(p.price)}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={`font-semibold ${
+                          p.stock === 0
+                            ? "text-red-600"
+                            : p.stock <= p.minStock
+                              ? "text-amber-600"
+                              : "text-green-600"
+                        }`}
+                      >
+                        {p.stock === 0 ? "Agotado" : p.stock}
+                      </span>
+
+                      {p.stock <= p.minStock && p.stock > 0 && (
+                        <AlertTriangle
+                          size={12}
+                          className="inline ml-1 text-amber-500"
+                        />
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          p.active
+                            ? "bg-green-50 text-green-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {p.active ? "Activo" : "Inactivo"}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setModal({ open: true, product: p })}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+                          title="Editar producto"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+
+                        <button
+                          onClick={() => setDeleteId(p.id)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
+                          title="Eliminar producto"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+              {!loading && filtered.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -533,12 +715,17 @@ export function AdminProducts({
             <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mx-auto">
               <Trash2 className="text-red-600" size={22} />
             </div>
+
             <h3 className="text-center font-bold text-gray-800">
               ¿Eliminar producto?
             </h3>
+
             <p className="text-center text-sm text-gray-500">
-              Esta acción no se puede deshacer.
+              Esta acción no se puede deshacer. Si el producto tiene compras
+              asociadas, el sistema impedirá eliminarlo para conservar el
+              historial.
             </p>
+
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteId(null)}
@@ -546,6 +733,7 @@ export function AdminProducts({
               >
                 Cancelar
               </button>
+
               <button
                 onClick={() => handleDelete(deleteId)}
                 className="flex-1 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25]"

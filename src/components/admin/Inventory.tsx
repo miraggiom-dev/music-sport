@@ -1,7 +1,8 @@
 import type { Product } from "@/types";
 import { AlertTriangle, Package, Search, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast as notify } from "sonner";
+import { productService } from "@/services/productService";
 import { isValidStock, StatCard } from "./shared";
 
 export type StockStatus = "normal" | "bajo" | "agotado";
@@ -11,6 +12,7 @@ export const stockStatus = (
   p: Pick<Product, "stock" | "minStock">,
 ): StockStatus =>
   p.stock === 0 ? "agotado" : p.stock <= p.minStock ? "bajo" : "normal";
+
 export function AdminInventory({
   products,
   setProducts,
@@ -22,13 +24,41 @@ export function AdminInventory({
 }) {
   const lowStock = products.filter((p) => stockStatus(p) === "bajo");
   const outStock = products.filter((p) => stockStatus(p) === "agotado");
+
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [adjVal, setAdjVal] = useState("");
   const [adjErr, setAdjErr] = useState("");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"todos" | "normal" | "bajo" | "agotado">(
-    "todos",
-  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [filter, setFilter] = useState<
+    "todos" | "normal" | "bajo" | "agotado"
+  >("todos");
+
+  useEffect(() => {
+    let mounted = true;
+
+    productService
+      .getAll()
+      .then((data) => {
+        if (mounted) setProducts(data);
+      })
+      .catch((error: Error) => {
+        if (mounted) {
+          notify.error("No se pudo cargar el inventario", {
+            description: error.message,
+          });
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [setProducts]);
 
   const rows = products.filter(
     (p) =>
@@ -42,17 +72,38 @@ export function AdminInventory({
     setAdjVal(String(p.stock));
     setAdjErr("");
   };
-  const handleAdjust = () => {
+
+  const handleAdjust = async () => {
     const n = Number(adjVal);
+
     if (adjVal.trim() === "" || !isValidStock(n)) {
       setAdjErr("Ingresa un número entero mayor o igual a 0");
       return;
     }
-    setProducts(
-      products.map((p) => (p.id === adjustId ? { ...p, stock: n } : p)),
-    );
-    setAdjustId(null);
-    notify.success("Stock actualizado");
+
+    if (!adjustId || saving) return;
+
+    setSaving(true);
+
+    try {
+      const updated = await productService.updateStock(adjustId, n);
+
+      setProducts(
+        products.map((p) => (p.id === adjustId ? updated : p)),
+      );
+
+      setAdjustId(null);
+      setAdjErr("");
+
+      notify.success("Stock actualizado correctamente");
+    } catch (error) {
+      notify.error("No se pudo actualizar el stock", {
+        description:
+          error instanceof Error ? error.message : "Error inesperado.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -65,6 +116,7 @@ export function AdminInventory({
           icon={<Package size={20} />}
           color="#1560BD"
         />
+
         <StatCard
           label="Stock Bajo"
           value={String(lowStock.length)}
@@ -72,6 +124,7 @@ export function AdminInventory({
           icon={<AlertTriangle size={20} />}
           color="#C8102E"
         />
+
         <StatCard
           label="Agotados"
           value={String(outStock.length)}
@@ -89,6 +142,7 @@ export function AdminInventory({
               Alertas de stock
             </h3>
           </div>
+
           <div className="space-y-2">
             {[...outStock, ...lowStock].map((p) => (
               <div
@@ -99,14 +153,18 @@ export function AdminInventory({
                   <span className="text-sm font-medium text-gray-800">
                     {p.name}
                   </span>
+
                   <span
-                    className={`ml-2 text-xs font-semibold ${p.stock === 0 ? "text-red-600" : "text-amber-600"}`}
+                    className={`ml-2 text-xs font-semibold ${
+                      p.stock === 0 ? "text-red-600" : "text-amber-600"
+                    }`}
                   >
                     {p.stock === 0
                       ? "AGOTADO"
                       : `${p.stock} uds restantes (mín: ${p.minStock})`}
                   </span>
                 </div>
+
                 {canEdit && (
                   <button
                     onClick={() => openAdjust(p)}
@@ -132,12 +190,14 @@ export function AdminInventory({
           >
             Estado del inventario
           </h3>
+
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
+
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -145,12 +205,17 @@ export function AdminInventory({
                 className="w-full sm:w-56 pl-8 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30"
               />
             </div>
+
             <div className="flex gap-1 overflow-x-auto">
               {(["todos", "normal", "bajo", "agotado"] as const).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium capitalize whitespace-nowrap ${filter === f ? "bg-[#000080] text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100"}`}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium capitalize whitespace-nowrap ${
+                    filter === f
+                      ? "bg-[#000080] text-white"
+                      : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  }`}
                 >
                   {f === "bajo" ? "Stock bajo" : f}
                 </button>
@@ -158,6 +223,7 @@ export function AdminInventory({
             </div>
           </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
@@ -180,8 +246,20 @@ export function AdminInventory({
                 ))}
               </tr>
             </thead>
+
             <tbody>
-              {rows.length === 0 && (
+              {loading && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-5 py-10 text-center text-gray-400 text-sm"
+                  >
+                    Cargando inventario...
+                  </td>
+                </tr>
+              )}
+
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -191,72 +269,93 @@ export function AdminInventory({
                   </td>
                 </tr>
               )}
-              {rows.map((p) => {
-                const status = stockStatus(p);
-                return (
-                  <tr
-                    key={p.id}
-                    className={`border-t border-gray-50 hover:bg-gray-50 transition-colors ${status === "agotado" ? "bg-red-50/30" : status === "bajo" ? "bg-amber-50/30" : ""}`}
-                  >
-                    <td className="px-5 py-3 font-medium text-gray-800">
-                      {p.name}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-gray-500">
-                      {p.sku}
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">
-                      {p.category}
-                    </td>
-                    <td
-                      className="px-5 py-3 font-bold text-lg"
-                      style={{ fontFamily: "'DM Mono',monospace" }}
-                    >
-                      <span
-                        className={
-                          status === "agotado"
-                            ? "text-red-600"
-                            : status === "bajo"
-                              ? "text-amber-600"
-                              : "text-green-600"
-                        }
-                      >
-                        {p.stock}
-                      </span>
-                    </td>
-                    <td
-                      className="px-5 py-3 text-gray-500"
-                      style={{ fontFamily: "'DM Mono',monospace" }}
-                    >
-                      {p.minStock}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${status === "agotado" ? "bg-red-100 text-red-700" : status === "bajo" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}
-                      >
-                        {status === "agotado"
-                          ? "Agotado"
+
+              {!loading &&
+                rows.map((p) => {
+                  const status = stockStatus(p);
+
+                  return (
+                    <tr
+                      key={p.id}
+                      className={`border-t border-gray-50 hover:bg-gray-50 transition-colors ${
+                        status === "agotado"
+                          ? "bg-red-50/30"
                           : status === "bajo"
-                            ? "Stock Bajo"
-                            : "Normal"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      {!canEdit ? (
-                        <span className="text-xs text-gray-300">
-                          Solo lectura
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => openAdjust(p)}
-                          className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-[#000080] hover:text-white transition-colors"
+                            ? "bg-amber-50/30"
+                            : ""
+                      }`}
+                    >
+                      <td className="px-5 py-3 font-medium text-gray-800">
+                        {p.name}
+                      </td>
+
+                      <td className="px-5 py-3 font-mono text-xs text-gray-500">
+                        {p.sku}
+                      </td>
+
+                      <td className="px-5 py-3 text-gray-500 text-xs">
+                        {p.category}
+                      </td>
+
+                      <td
+                        className="px-5 py-3 font-bold text-lg"
+                        style={{ fontFamily: "'DM Mono',monospace" }}
+                      >
+                        <span
+                          className={
+                            status === "agotado"
+                              ? "text-red-600"
+                              : status === "bajo"
+                                ? "text-amber-600"
+                                : "text-green-600"
+                          }
                         >
-                          Ajustar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                          {p.stock}
+                        </span>
+                      </td>
+
+                      <td
+                        className="px-5 py-3 text-gray-500"
+                        style={{ fontFamily: "'DM Mono',monospace" }}
+                      >
+                        {p.minStock}
+                      </td>
+
+                      <td className="px-5 py-3">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            status === "agotado"
+                              ? "bg-red-100 text-red-700"
+                              : status === "bajo"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {status === "agotado"
+                            ? "Agotado"
+                            : status === "bajo"
+                              ? "Stock Bajo"
+                              : "Normal"}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-3">
+                        {!canEdit ? (
+                          <span className="text-xs text-gray-300">
+                            Solo lectura
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => openAdjust(p)}
+                            className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-[#000080] hover:text-white transition-colors"
+                          >
+                            Ajustar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -274,10 +373,12 @@ export function AdminInventory({
             >
               Ajustar stock: {products.find((p) => p.id === adjustId)?.name}
             </h3>
+
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Nueva cantidad
               </label>
+
               <input
                 type="number"
                 min={0}
@@ -287,22 +388,33 @@ export function AdminInventory({
                   setAdjVal(e.target.value);
                   setAdjErr("");
                 }}
-                className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${adjErr ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+                className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${
+                  adjErr
+                    ? "border-red-400 bg-red-50"
+                    : "border-gray-200"
+                }`}
               />
-              {adjErr && <p className="text-red-500 text-xs mt-1">{adjErr}</p>}
+
+              {adjErr && (
+                <p className="text-red-500 text-xs mt-1">{adjErr}</p>
+              )}
             </div>
+
             <div className="flex gap-3">
               <button
                 onClick={() => setAdjustId(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium"
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium disabled:opacity-50"
               >
                 Cancelar
               </button>
+
               <button
                 onClick={handleAdjust}
-                className="flex-1 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25]"
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a80d25] disabled:opacity-50"
               >
-                Actualizar
+                {saving ? "Guardando..." : "Actualizar"}
               </button>
             </div>
           </div>

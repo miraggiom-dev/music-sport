@@ -1,15 +1,16 @@
-
 import express from 'express';
 import session from 'express-session';
 import db from '../database/connection.js';
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import clientsRoutes from './routes/clients.js';
+import productsRoutes from './routes/products.js';
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Permitir imágenes codificadas en Base64 de hasta 2 MB.
+app.use(express.json({ limit: '5mb' }));
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'music-sport-demo-secret',
@@ -23,10 +24,11 @@ app.use(session({
   }
 }));
 
-// Rutas de autenticación
+// Rutas de la API.
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
+app.use('/api/products', productsRoutes);
 
 app.get('/api/status', (req, res) => {
   res.json({
@@ -36,7 +38,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Comprobar conexión con SQLite
+// Comprobar conexión con SQLite.
 app.get('/api/db-status', (req, res) => {
   try {
     const result = db.prepare('SELECT 1 AS connected').get();
