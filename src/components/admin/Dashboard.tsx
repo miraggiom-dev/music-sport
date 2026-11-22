@@ -5,7 +5,13 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { stockStatus } from "./Inventory";
 import { newestFirst } from "./Orders";
 import { periodKey, trendBuckets } from "./Reports";
-import { fmt, PAID_STATUSES, round2, StatusBadge } from "./shared";
+import {
+  fmt,
+  orderLineUnitPrice,
+  PAID_STATUSES,
+  round2,
+  StatusBadge,
+} from "./shared";
 
 // Ventas pagadas agrupadas por período (reemplaza al salesTrend de
 // components/shared, que devolvía el mismo total en todas las barras).
@@ -95,7 +101,7 @@ export function AdminDashboard({
     paid
       .flatMap((o) => o.items)
       .filter((i) => i.product.category === c)
-      .reduce((a, i) => a + i.product.price * i.qty, 0),
+      .reduce((a, i) => a + orderLineUnitPrice(i) * i.qty, 0),
   );
   const catSum = catTotals[0] + catTotals[1];
   const categoryData =

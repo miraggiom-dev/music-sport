@@ -4,8 +4,18 @@ import { orderService } from "./orderService";
 import { productService } from "./productService";
 import { rateService } from "./rateService";
 import { canAccessView, homeFor } from "@/lib/permissions";
-import { pathForView, viewForPath } from "@/app/routeConfig";
-import { initClients, initOrders, initUsers } from "@/data/mockData";
+import {
+  pathForProduct,
+  pathForView,
+  productIdForPath,
+  viewForPath,
+} from "@/app/routeConfig";
+import {
+  initClients,
+  initOrders,
+  initProducts,
+  initUsers,
+} from "@/data/mockData";
 import type { Order } from "@/types";
 
 describe("auth, roles and navigation", () => {
@@ -36,6 +46,10 @@ describe("auth, roles and navigation", () => {
     expect(homeFor(null)).toBe("login");
     expect(pathForView("vendor-orders")).toBe("/vendedor/ordenes");
     expect(viewForPath("/catalogo")).toBe("catalog");
+    expect(pathForProduct("P 001")).toBe("/catalogo/producto/P%20001");
+    expect(productIdForPath("/catalogo/producto/P%20001")).toBe("P 001");
+    expect(viewForPath("/catalogo/producto/P001")).toBe("product-detail");
+    expect(viewForPath("/catalogo/producto")).toBe("catalog");
     expect(viewForPath("/ruta-inexistente")).toBeNull();
   });
 });
@@ -43,7 +57,16 @@ describe("auth, roles and navigation", () => {
 describe("domain services", () => {
   it("lists the current products and handles missing products", () => {
     const products = productService.list();
-    expect(products).toEqual([]);
+    expect(products.length).toBeGreaterThan(0);
+    expect(products).toEqual(initProducts);
+    expect(products.some((product) => product.category === "Música")).toBe(
+      true,
+    );
+    expect(products.some((product) => product.category === "Deportes")).toBe(
+      true,
+    );
+    expect(products.some((product) => product.stock === 0)).toBe(true);
+    expect(products.some((product) => !product.active)).toBe(true);
     expect(products).not.toBe(productService.list());
     expect(productService.findById("missing")).toBeUndefined();
   });

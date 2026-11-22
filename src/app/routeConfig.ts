@@ -29,7 +29,25 @@ export function pathForView(view: View) {
   return VIEW_PATHS[view];
 }
 
+export function pathForProduct(productId: string) {
+  return `${VIEW_PATHS["product-detail"]}/${encodeURIComponent(productId)}`;
+}
+
+export function productIdForPath(pathname: string) {
+  const prefix = `${VIEW_PATHS["product-detail"]}/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const id = pathname.slice(prefix.length).split("/")[0];
+  if (!id) return null;
+  try {
+    return decodeURIComponent(id);
+  } catch {
+    return id;
+  }
+}
+
 export function viewForPath(pathname: string): View | null {
+  if (productIdForPath(pathname)) return "product-detail";
   const exact = PATH_VIEWS.find(([, path]) => path === pathname);
+  if (exact?.[0] === "product-detail") return "catalog";
   return exact?.[0] ?? null;
 }

@@ -15,8 +15,29 @@ export interface Product {
 }
 
 export interface CartItem { product: Product; qty: number; }
+export interface OrderLine extends CartItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  unitPrice: number;
+}
 export type OrderStatus = "pendiente" | "procesando" | "despachado" | "completado" | "cancelado";
-export interface Billing { name: string; docId: string; email: string; phone: string; address: string; method: string; reference: string; }
+export interface DeliveryRecipient {
+  name: string;
+  phone: string;
+  address: string;
+}
+export interface Billing {
+  name: string;
+  docId: string;
+  email: string;
+  phone: string;
+  address: string;
+  method: string;
+  reference: string;
+  recipient?: DeliveryRecipient;
+  clientRequestId?: string;
+}
 export type TaxType = "IVA" | "IGTF";
 
 export interface ExchangeRate { id: string; name: string; value: number; active: boolean; updatedAt: string; userId: string; }
@@ -24,9 +45,16 @@ export type RateSnap = Pick<ExchangeRate, "name" | "value" | "updatedAt">;
 
 export interface Order {
   id: string; clientId: string; clientName: string; clientEmail: string;
-  items: CartItem[]; subtotal: number; tax: number; taxType: TaxType; total: number; status: OrderStatus;
+  items: OrderLine[]; subtotal: number; tax: number; taxType: TaxType; total: number; status: OrderStatus;
   date: string; address: string; phone: string; billing: Billing;
   receiptNo?: string; paidAt?: string; rejectReason?: string;
+  clientRequestId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: "client" | "staff";
+  reviewedAt?: string;
+  reviewedBy?: string;
   currency: "USD" | "VES"; rate?: RateSnap;
 }
 

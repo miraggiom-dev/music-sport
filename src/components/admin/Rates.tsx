@@ -108,11 +108,16 @@ export function AdminRates({
         ];
 
     const savedId = modal?.rate?.id ?? nextRates[nextRates.length - 1].id;
-    if (makeActive)
+    if (makeActive) {
       nextRates = nextRates.map((rate) => ({
         ...rate,
         active: rate.id === savedId,
       }));
+    } else if (modal?.rate) {
+      nextRates = nextRates.map((rate) =>
+        rate.id === modal.rate!.id ? { ...rate, active: false } : rate,
+      );
+    }
     setRates(nextRates);
     closeModal();
     notify.success(modal?.rate ? "Tasa actualizada" : "Tasa registrada");
