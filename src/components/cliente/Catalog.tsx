@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -98,6 +98,14 @@ import {
   rateNote,
 } from "@/components/shared";
 import logoImg from "@/imports/Logo.png";
+import {
+  catalogFiltersSearch,
+  filterCatalogProducts,
+  getCatalogSubcategories,
+  parseCatalogFilters,
+  type CatalogCategory,
+} from "./catalogFilters";
+import { safeImageSource } from "./productValidation";
 function ProductCard({
   p,
   inCart,
@@ -118,7 +126,7 @@ function ProductCard({
         aria-label={`Ver ${p.name}`}
       >
         <img
-          src={p.image || FALLBACK_IMG}
+          src={safeImageSource(p.image, FALLBACK_IMG)}
           onError={onImgError}
           alt={p.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -173,40 +181,53 @@ export function Catalog({
   cart,
   addToCart,
   setView,
-  setSelectedProductId,
+  openProduct,
 }: {
   products: Product[];
   cart: CartItem[];
   addToCart: AddToCart;
   setView: (v: View) => void;
-  setSelectedProductId: (id: string) => void;
+  openProduct: (id: string) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [cat, setCat] = useState("Todos");
-  const [sub, setSub] = useState("Todos");
+  const initialFilters = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? { search: "", category: "Todos" as CatalogCategory, subcategory: "Todos" }
+        : parseCatalogFilters(window.location.search),
+    [],
+  );
+  const [search, setSearch] = useState(initialFilters.search);
+  const [cat, setCat] = useState<CatalogCategory>(initialFilters.category);
+  const [sub, setSub] = useState(initialFilters.subcategory);
+  const deferredSearch = useDeferredValue(search);
 
   const inCart = (id: string) =>
     cart.find((i) => i.product.id === id)?.qty ?? 0;
-  const visible = products.filter((p) => p.active);
-  const available = visible.filter((p) => p.stock > 0);
-  const inCategory = visible.filter(
-    (p) => cat === "Todos" || p.category === cat,
+  const available = useMemo(
+    () => products.filter((p) => p.active && p.stock > 0),
+    [products],
   );
-  const subcats = [
-    "Todos",
-    ...Array.from(new Set(inCategory.map((p) => p.subcategory))),
-  ];
-  const q = search.trim().toLowerCase();
-  const filtered = available.filter((p) => {
-    const matchSearch =
-      !q ||
-      [p.name, p.description, p.subcategory, p.category].some((t) =>
-        t.toLowerCase().includes(q),
-      );
-    const matchCat = cat === "Todos" || p.category === cat;
-    const matchSub = sub === "Todos" || p.subcategory === sub;
-    return matchSearch && matchCat && matchSub;
-  });
+  const inCategory = useMemo(
+    () =>
+      products.filter(
+        (p) => p.active && (cat === "Todos" || p.category === cat),
+      ),
+    [cat, products],
+  );
+  const subcats = useMemo(
+    () => getCatalogSubcategories(products, cat),
+    [cat, products],
+  );
+  const q = deferredSearch.trim().toLowerCase();
+  const filtered = useMemo(
+    () =>
+      filterCatalogProducts(products, {
+        search: deferredSearch,
+        category: cat,
+        subcategory: sub,
+      }),
+    [cat, deferredSearch, sub, products],
+  );
   const scopeOutOfStock =
     !q &&
     inCategory.filter((p) => sub === "Todos" || p.subcategory === sub).length >
@@ -219,10 +240,25 @@ export function Catalog({
           .sort((a, b) => b.stock - a.stock)
           .slice(0, 4)
       : [];
-  const open = (p: Product) => {
-    setSelectedProductId(p.id);
-    setView("product-detail");
-  };
+  useEffect(() => {
+    if (sub !== "Todos" && !subcats.includes(sub)) setSub("Todos");
+  }, [sub, subcats]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${catalogFiltersSearch({
+          search,
+          category: cat,
+          subcategory: sub,
+        })}`,
+      );
+    }
+  }, [cat, search, sub]);
+
+  const open = (p: Product) => openProduct(p.id);
   const reset = () => {
     setSearch("");
     setCat("Todos");
@@ -276,6 +312,7 @@ export function Catalog({
             type="search"
             placeholder="Buscar por nombre, descripción o categoría..."
             className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30"
+            aria-label="Buscar productos"
           />
           {search && (
             <button
@@ -288,7 +325,7 @@ export function Catalog({
           )}
         </div>
         <div className="flex gap-2">
-          {["Todos", "Deportes", "Música"].map((c) => (
+          {(["Todos", "Deportes", "Música"] as CatalogCategory[]).map((c) => (
             <button
               key={c}
               onClick={() => {

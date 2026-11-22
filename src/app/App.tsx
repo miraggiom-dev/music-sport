@@ -88,7 +88,12 @@ import {
 import { printDocument } from "@/lib/generatePDF";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RateContext } from "@/contexts/RateContext";
-import { pathForView, viewForPath } from "./routeConfig";
+import {
+  pathForProduct,
+  pathForView,
+  productIdForPath,
+  viewForPath,
+} from "./routeConfig";
 import {
   ROLE_VIEWS,
   GUEST_VIEWS,
@@ -147,7 +152,16 @@ import {
   ClientProfile,
   ClientOrders,
 } from "@/components/cliente";
-import { StatusBadge, Logo, Input, StatCard } from "@/components/shared";
+import {
+  isValidCatalogQuantity,
+} from "@/components/cliente/catalogFilters";
+import { getValidProducts } from "@/components/cliente/productValidation";
+import {
+  StatusBadge,
+  Logo,
+  Input,
+  StatCard,
+} from "@/components/shared";
 const LoginView = lazy(() => import("./auth/login/Lazy"));
 const RegisterView = lazy(() => import("./auth/LazyRegister"));
 import { round2, fmt, fmtBs } from "@/lib/formatCurrency";
@@ -166,6 +180,16 @@ function PageLoading() {
 function toISODate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+function parseLocalDate(value: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly)
+    return new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+    );
+  return new Date(value);
+}
 const taxLabel = (t: TaxType) => `${t} (${TAX_RATES[t] * 100}%)`;
 // Todos los montos se guardan en USD con 2 decimales (DECIMAL(10,2)); los bolívares solo se calculan para mostrar
 // Pago en bolívares → IVA 16%; pago en dólares → IGTF 3% (sin IVA)
@@ -178,11 +202,11 @@ const calcTotals = (items: CartItem[], taxType: TaxType) => {
 };
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmtDay = (iso: string) => {
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 const fmtDateTime = (iso: string) =>
-  `${fmtDay(iso)} ${new Date(iso).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}`;
+  `${fmtDay(iso)} ${parseLocalDate(iso).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}`;
 const rateAgeHours = (r: ExchangeRate) =>
   (Date.now() - new Date(r.updatedAt).getTime()) / 3600000;
 const rateNote = (r: RateSnap) => `Tasa ${r.name} al ${fmtDay(r.updatedAt)}`;
@@ -332,10 +356,11 @@ async function printReceipt(order: Order) {
   const r = order.rate;
   const m = (usd: number) => (inBs && r ? fmtBs(usd * r.value) : fmt(usd));
   const rows = order.items
-    .map(
-      (i) =>
-        `<tr><td>${escapeHtml(i.product.name)}</td><td>${escapeHtml(i.product.sku)}</td><td class="c">${i.qty}</td><td class="r">${m(i.product.price)}</td><td class="r">${m(i.product.price * i.qty)}</td></tr>`,
-    )
+    .map((i) => {
+      const unitPrice =
+        Number.isFinite(i.unitPrice) ? i.unitPrice : i.product.price;
+      return `<tr><td>${escapeHtml(i.productName ?? i.product.name)}</td><td>${escapeHtml(i.sku ?? i.product.sku)}</td><td class="c">${i.qty}</td><td class="r">${m(unitPrice)}</td><td class="r">${m(unitPrice * i.qty)}</td></tr>`;
+    })
     .join("");
   const footNote = !r
     ? ""
@@ -823,7 +848,9 @@ function AppMain({
     notice,
     setNotice,
   } = useAuth();
-  const [products, setProducts] = useState<Product[]>(productService.list());
+  const [products, setProducts] = useState<Product[]>(() =>
+    getValidProducts(productService.list()),
+  );
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCarts, setSavedCarts] = useState<Record<string, CartItem[]>>({});
   const [orders, setOrders] = useState<Order[]>(orderService.list());
@@ -846,7 +873,7 @@ function AppMain({
           : "";
   const [lockouts, setLockouts] = useState<Record<string, Lockout>>({});
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
+    () => productIdForPath(location.pathname),
   );
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
@@ -874,6 +901,12 @@ function AppMain({
     const nextPath = pathForView(nextView);
     if (location.pathname !== nextPath) navigate(nextPath);
   };
+  const openProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setViewRaw("product-detail");
+    const nextPath = pathForProduct(productId);
+    if (location.pathname !== nextPath) navigate(nextPath);
+  };
   const setView = (v: View) => {
     if (!canSee(v, role)) {
       if (!role && ROLE_VIEWS.client.includes(v))
@@ -886,13 +919,26 @@ function AppMain({
   };
   useEffect(() => {
     const routedView = viewForPath(location.pathname);
-    if (routedView && routedView !== view) setViewRaw(routedView);
-  }, [location.pathname]);
-  useEffect(() => {
-    if (canSee(view, role)) return;
-    const nextView = homeFor(role);
-    if (view !== nextView) goTo(nextView);
-  }, [view, role]);
+    if (!routedView) return;
+
+    if (!canSee(routedView, role)) {
+      const nextView = homeFor(role);
+      setViewRaw(nextView);
+      navigate(pathForView(nextView), { replace: true });
+      return;
+    }
+
+    setViewRaw((current) => current === routedView ? current : routedView);
+    if (routedView === "product-detail") {
+      setSelectedProductId((current) =>
+        current === productIdForPath(location.pathname)
+          ? current
+          : productIdForPath(location.pathname),
+      );
+    } else {
+      setSelectedProductId((current) => (current === null ? current : null));
+    }
+  }, [location.pathname, role, navigate]);
   useEffect(() => {
     // usuario suspendido o eliminado mientras tenía sesión
     if (
@@ -1026,6 +1072,10 @@ function AppMain({
   const emailTaken = (email: string) => !!findAccount(email);
 
   const addToCart: AddToCart = (productId, qty) => {
+    if (!isValidCatalogQuantity(qty)) {
+      notify.error("La cantidad debe ser un entero positivo");
+      return false;
+    }
     const p = products.find((x) => x.id === productId);
     if (!p || !p.active || p.stock === 0) {
       notify.error("Producto no disponible");
@@ -1051,6 +1101,18 @@ function AppMain({
 
   const placeOrder = (billing: Billing): Order | null => {
     if (!currentClient) return null;
+    const existingOrder = billing.clientRequestId
+      ? orders.find(
+          (order) =>
+            order.clientId === currentClient.id &&
+            order.clientRequestId === billing.clientRequestId,
+        )
+      : undefined;
+    if (existingOrder) {
+      setLastOrderId(existingOrder.id);
+      setCart([]);
+      return existingOrder;
+    }
     const lines = cart.map((i) => ({
       product: products.find((p) => p.id === i.product.id),
       qty: i.qty,
@@ -1065,28 +1127,56 @@ function AppMain({
       goTo("cart");
       return null;
     }
-    const items = lines.map((l) => ({ product: l.product!, qty: l.qty }));
+    const items = lines.map((l) => ({
+      product: l.product!,
+      qty: l.qty,
+      productId: l.product!.id,
+      productName: l.product!.name,
+      sku: l.product!.sku,
+      unitPrice: l.product!.price,
+    }));
+    const now = new Date().toISOString();
     const num =
       Math.max(
         1000,
         ...orders.map((o) => Number(o.id.replace(/\D/g, "")) || 0),
       ) + 1;
+    const normalizedBilling: Billing = {
+      ...billing,
+      name: currentClient.name,
+      docId: currentClient.docId,
+      email: currentClient.email,
+      phone: currentClient.phone,
+      address: billing.address.trim(),
+      reference: billing.reference.trim(),
+      recipient: billing.recipient
+        ? {
+            name: billing.recipient.name.trim(),
+            phone: billing.recipient.phone.trim(),
+            address: billing.recipient.address.trim(),
+          }
+        : undefined,
+    };
     const order: Order = {
       id: `ORD-${num}`,
       clientId: currentClient.id,
-      clientName: billing.name,
-      clientEmail: billing.email,
+      clientName: currentClient.name,
+      clientEmail: currentClient.email,
       items,
       ...calcTotals(
         items,
-        BS_METHODS.includes(billing.method) ? "IVA" : "IGTF",
+        BS_METHODS.includes(normalizedBilling.method) ? "IVA" : "IGTF",
       ),
       status: "pendiente",
       date: toISODate(new Date()),
-      address: billing.address,
-      phone: billing.phone,
-      billing,
-      currency: BS_METHODS.includes(billing.method) ? "VES" : "USD",
+      clientRequestId: billing.clientRequestId,
+      createdAt: now,
+      updatedAt: now,
+      address:
+        normalizedBilling.recipient?.address ?? normalizedBilling.address,
+      phone: normalizedBilling.recipient?.phone ?? normalizedBilling.phone,
+      billing: normalizedBilling,
+      currency: BS_METHODS.includes(normalizedBilling.method) ? "VES" : "USD",
       rate: activeRate
         ? {
             name: activeRate.name,
@@ -1098,6 +1188,15 @@ function AppMain({
     if (order.currency === "VES" && !order.rate) {
       notify.error("No hay tasa de cambio activa para pagos en bolívares");
       return null;
+    }
+    if (!currentClient.docId.trim() && billing.docId.trim()) {
+      setClients((cs) =>
+        cs.map((client) =>
+          client.id === currentClient.id
+            ? { ...client, docId: billing.docId.trim().toUpperCase() }
+            : client,
+        ),
+      );
     }
     setProducts((ps) =>
       ps.map((p) => {
@@ -1115,6 +1214,8 @@ function AppMain({
   const changeStatus: ChangeStatus = (id, status, extra = {}) => {
     const o = orders.find((x) => x.id === id);
     if (!o || o.status === status) return;
+    if (!NEXT_STATUS[o.status].includes(status)) return;
+    const now = new Date().toISOString();
     if (status === "cancelado" && o.status !== "cancelado") {
       setProducts((ps) =>
         ps.map((p) => {
@@ -1123,10 +1224,20 @@ function AppMain({
         }),
       );
     }
-    const patch: Partial<Order> = { ...extra, status };
-    if (status === "procesando" && !o.receiptNo) {
-      patch.receiptNo = patch.receiptNo ?? `REC-${o.id.replace(/\D/g, "")}`;
-      patch.paidAt = patch.paidAt ?? toISODate(new Date());
+    const patch: Partial<Order> = { ...extra, status, updatedAt: now };
+    if (status === "cancelado") {
+      patch.cancelledAt = now;
+      patch.cancelledBy = role === "client" ? "client" : "staff";
+      patch.receiptNo = undefined;
+      patch.paidAt = undefined;
+    }
+    if (status === "procesando") {
+      patch.reviewedAt = patch.reviewedAt ?? now;
+      patch.reviewedBy = patch.reviewedBy ?? currentUser?.id ?? "staff";
+      if (!o.receiptNo) {
+        patch.receiptNo = patch.receiptNo ?? `REC-${o.id.replace(/\D/g, "")}`;
+        patch.paidAt = patch.paidAt ?? toISODate(new Date());
+      }
     }
     setOrders((os) => os.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
@@ -1315,7 +1426,7 @@ function AppMain({
       cart={cart}
       addToCart={addToCart}
       setView={setView}
-      setSelectedProductId={setSelectedProductId}
+      openProduct={openProduct}
     />
   );
   return (
@@ -1334,17 +1445,14 @@ function AppMain({
             <CatalogFooter setView={setView} />
           </>
         )}
-        {view === "product-detail" &&
-          (selectedProduct ? (
-            <ProductDetail
-              product={selectedProduct}
-              cart={cart}
-              addToCart={addToCart}
-              setView={setView}
-            />
-          ) : (
-            catalog
-          ))}
+        {view === "product-detail" && (
+          <ProductDetail
+            product={selectedProduct}
+            cart={cart}
+            addToCart={addToCart}
+            setView={setView}
+          />
+        )}
         {view === "cart" && (
           <CartView
             cart={cart}

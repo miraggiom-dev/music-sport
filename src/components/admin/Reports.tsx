@@ -23,6 +23,8 @@ import {
   PAID_STATUSES,
   StatusBadge,
   toISODate,
+  orderLineUnitPrice,
+  round2,
 } from "./shared";
 
 const MONTH_LABELS = [
@@ -121,12 +123,15 @@ function exportReport({
   periodOrders: Order[];
   periodPaid: Order[];
   products: Product[];
-  soldByProduct: Record<string, { product: Product; quantity: number }>;
+  soldByProduct: Record<
+    string,
+    { product: Product; quantity: number; revenue: number }
+  >;
   revenue: number;
   average: number;
   cancelled: number;
   trend: { key: string; label: string; value: number }[];
-  rotatingProducts: { product: Product; quantity: number }[];
+  rotatingProducts: { product: Product; quantity: number; revenue: number }[];
 }) {
   const label = reportPeriodLabel(period);
   const inventoryRows = products
@@ -160,7 +165,7 @@ function exportReport({
     ? rotatingProducts
         .map(
           (item, index) =>
-            `<tr><td>${index + 1}</td><td>${escapeHtml(item.product.name)}</td><td class="center">${item.quantity}</td><td class="right">${fmt(item.product.price * item.quantity)}</td></tr>`,
+            `<tr><td>${index + 1}</td><td>${escapeHtml(item.product.name)}</td><td class="center">${item.quantity}</td><td class="right">${fmt(item.revenue)}</td></tr>`,
         )
         .join("")
     : `<tr><td colspan="4" class="empty">Ningún producto alcanzó el mínimo de rotación en este período</td></tr>`;
@@ -223,13 +228,20 @@ export function AdminReports({
   const maxTrend = Math.max(...trend.map((item) => item.value), 1);
   const soldByProduct = periodPaid
     .flatMap((order) => order.items)
-    .reduce<Record<string, { product: Product; quantity: number }>>(
+    .reduce<
+      Record<
+        string,
+        { product: Product; quantity: number; revenue: number }
+      >
+    >(
       (result, item) => {
         const current = result[item.product.id] ?? {
           product: item.product,
           quantity: 0,
+          revenue: 0,
         };
         current.quantity += item.qty;
+        current.revenue += round2(orderLineUnitPrice(item) * item.qty);
         result[item.product.id] = current;
         return result;
       },

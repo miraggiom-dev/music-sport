@@ -224,7 +224,7 @@ export function ClientOrders({
                         {o.id}
                       </span>
                       <span className="mx-2 text-gray-300">·</span>
-                      <span className="text-xs text-gray-400">{o.date}</span>
+                      <span className="text-xs text-gray-400">{fmtDay(o.date)}</span>
                     </div>
                     <StatusBadge status={o.status} />
                   </div>
@@ -235,10 +235,10 @@ export function ClientOrders({
                         className="flex justify-between gap-3 text-sm"
                       >
                         <span className="text-gray-700">
-                          {item.product.name} ×{item.qty}
+                          {item.productName ?? item.product.name} ×{item.qty}
                         </span>
                         <span className="font-medium shrink-0">
-                          {fmt(item.product.price * item.qty)}
+                          {fmt((item.unitPrice ?? item.product.price) * item.qty)}
                         </span>
                       </div>
                     ))}
