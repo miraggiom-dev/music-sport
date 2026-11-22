@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { createContext, useContext, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type { InternalUser, Role } from "@/types";
 
 interface AuthContextValue {
@@ -15,10 +15,24 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<Role | null>(null);
-  const [currentUser, setCurrentUser] = useState<InternalUser | null>(null);
-  const [currentClientId, setCurrentClientId] = useState<string | null>(null);
+  const [role, setRole] = useState<Role | null>(() => (localStorage.getItem("ms_role") as Role) || null);
+  const [currentUser, setCurrentUser] = useState<InternalUser | null>(() => {
+    const saved = localStorage.getItem("ms_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [currentClientId, setCurrentClientId] = useState<string | null>(() => localStorage.getItem("ms_client_id"));
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (role) localStorage.setItem("ms_role", role);
+    else localStorage.removeItem("ms_role");
+
+    if (currentUser) localStorage.setItem("ms_user", JSON.stringify(currentUser));
+    else localStorage.removeItem("ms_user");
+
+    if (currentClientId) localStorage.setItem("ms_client_id", currentClientId);
+    else localStorage.removeItem("ms_client_id");
+  }, [role, currentUser, currentClientId]);
 
   return (
     <AuthContext.Provider value={{ role, setRole, currentUser, setCurrentUser, currentClientId, setCurrentClientId, notice, setNotice }}>

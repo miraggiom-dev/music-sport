@@ -3,50 +3,11 @@ const LOCK_ATTEMPTS = 3;
 const LOCK_MINUTES = 5;
 import {
   AlertTriangle,
-  ArrowRight,
-  BarChart2,
-  Bell,
   CheckCircle,
-  ChevronDown,
   ChevronLeft,
-  ChevronRight,
-  Coins,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Home,
-  Info,
-  Layers,
-  LogOut,
   Mail,
-  MapPin,
-  Menu,
-  Minus,
-  Package,
-  Phone,
-  Printer,
-  RefreshCw,
-  Save,
-  Search,
-  ShieldCheck,
-  ShoppingBag,
-  ShoppingCart,
-  Star,
-  Tag,
-  Truck,
-  User,
-  Users,
-  X,
-  XCircle,
-  Plus,
-  Trash2,
-  DollarSign,
-  Calendar,
   KeyRound,
   Lock,
-  Clock,
 } from "lucide-react";
 import { toast as notify } from "sonner";
 import type {
@@ -64,25 +25,10 @@ import type {
   View,
 } from "@/types";
 import {
-  BsRef,
-  fmt,
-  fmtBs,
-  fmtDateTime,
-  fmtDay,
   isValidEmail,
-  isValidName,
   isValidPass,
-  isValidPhone,
-  isValidSku,
-  onImgError,
-  PAID_STATUSES,
-  statusLabel,
-  StatusBadge,
   Logo,
   Input,
-  StatCard,
-  StatusFilter,
-  OrderDetailModal,
 } from "@/components/shared";
 import {
   FALLBACK_IMG,
@@ -95,7 +41,6 @@ import {
   useRate,
   rateNote,
 } from "@/components/shared";
-import logoImg from "@/imports/Logo.png";
 import { AuthShell } from "./AuthShell";
 
 export function LoginView({
@@ -379,9 +324,9 @@ export function LoginView({
       {notice && !error && banner("amber", notice)}
       {lockedFor > 0
         ? banner(
-            "red",
-            `Cuenta bloqueada por intentos fallidos. Intenta de nuevo en ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")} o recupera tu contraseña.`,
-          )
+          "red",
+          `Cuenta bloqueada por intentos fallidos. Intenta de nuevo en ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")} o recupera tu contraseña.`,
+        )
         : error && banner("red", error)}
       <div className="space-y-4">
         {field(

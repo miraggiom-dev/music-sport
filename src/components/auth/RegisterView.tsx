@@ -1,68 +1,5 @@
-import { useEffect, useState } from "react";
-const LOCK_ATTEMPTS = 3;
-const LOCK_MINUTES = 5;
-import {
-  AlertTriangle,
-  ArrowRight,
-  BarChart2,
-  Bell,
-  CheckCircle,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Coins,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Home,
-  Info,
-  Layers,
-  LogOut,
-  Mail,
-  MapPin,
-  Menu,
-  Minus,
-  Package,
-  Phone,
-  Printer,
-  RefreshCw,
-  Save,
-  Search,
-  ShieldCheck,
-  ShoppingBag,
-  ShoppingCart,
-  Star,
-  Tag,
-  Truck,
-  User,
-  Users,
-  X,
-  XCircle,
-  Plus,
-  Trash2,
-  DollarSign,
-  Calendar,
-  KeyRound,
-  Lock,
-  Clock,
-} from "lucide-react";
-import { toast as notify } from "sonner";
-import type {
-  Account,
-  AddToCart,
-  Billing,
-  CartItem,
-  ChangeStatus,
-  Client,
-  InternalUser,
-  Lockout,
-  Order,
-  Product,
-  Role,
-  View,
-} from "@/types";
+import { useState } from "react";
+import type { Client, View } from "@/types";
 import {
   BsRef,
   fmt,
@@ -95,7 +32,6 @@ import {
   useRate,
   rateNote,
 } from "@/components/shared";
-import logoImg from "@/imports/Logo.png";
 import { AuthShell } from "./AuthShell";
 
 export function RegisterView({
@@ -138,7 +74,7 @@ export function RegisterView({
     setErrors(e);
     if (Object.keys(e).length) return;
     onRegister({
-      id: `C${Date.now()}`,
+      id: `C-${crypto.randomUUID().slice(0, 8)}`,
       name: form.name.trim(),
       email,
       docId: form.docId.trim().toUpperCase(),
