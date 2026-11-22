@@ -1,11 +1,28 @@
 
 import express from 'express';
+import session from 'express-session';
 import db from '../database/connection.js';
+import authRoutes from './routes/auth.js';
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'music-sport-demo-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax',
+    maxAge: 1000 * 60 * 60 * 8
+  }
+}));
+
+// Rutas de autenticación
+app.use('/api/auth', authRoutes);
 
 app.get('/api/status', (req, res) => {
   res.json({

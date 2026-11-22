@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "test": "vitest run --config vitest.config.ts",
-    "dev": "vite --host 0.0.0.0"
+    "dev": "vite --host 0.0.0.0",
+    "server": "node server/index.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

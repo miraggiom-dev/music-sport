@@ -845,8 +845,9 @@ function AppMain({
     setCurrentUser,
     currentClientId,
     setCurrentClientId,
-    notice,
-    setNotice,
+        notice,
+      setNotice,
+      authLoading,
   } = useAuth();
   const [products, setProducts] = useState<Product[]>(() =>
     getValidProducts(productService.list()),
@@ -889,6 +890,58 @@ function AppMain({
   }, []);
 
   const currentClient = clients.find((c) => c.id === currentClientId) ?? null;
+
+  // Recuperar los datos del cliente autenticado desde SQLite.
+// Esto permite reconocer también a los clientes que no están
+// incluidos en la lista local inicial del frontend.
+useEffect(() => {
+  if (role !== "client" || !currentClientId) return;
+
+  let active = true;
+
+  async function loadAuthenticatedClient() {
+    const user = await authService.getCurrentUser();
+
+    if (
+      !active ||
+      !user ||
+      user.role !== "client" ||
+      !user.clientId ||
+      String(user.clientId) !== currentClientId
+    ) {
+      return;
+    }
+
+    setClients((previous) => {
+      const alreadyExists = previous.some(
+        (client) => client.id === currentClientId,
+      );
+
+      if (alreadyExists) return previous;
+
+      return [
+        ...previous,
+        {
+          id: String(user.clientId),
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          address: user.address ?? "",
+          docId: user.docId ?? "",
+          createdAt: user.createdAt,
+          password: "",
+        },
+      ];
+    });
+  }
+
+  loadAuthenticatedClient();
+
+  return () => {
+    active = false;
+  };
+}, [role, currentClientId]);
+
   const selectedProduct =
     products.find((p) => p.id === selectedProductId) ?? null;
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) ?? null;
@@ -939,15 +992,18 @@ function AppMain({
       setSelectedProductId((current) => (current === null ? current : null));
     }
   }, [location.pathname, role, navigate]);
-  useEffect(() => {
-    // usuario suspendido o eliminado mientras tenía sesión
+    useEffect(() => {
+    // Si el usuario existe en la lista local y está inactivo,
+    // se cierra su sesión. Si no aparece, no se asume que fue eliminado,
+    // porque ahora la autenticación proviene de SQLite.
     if (
       currentUser &&
-      !internalUsers.some(
-        (u) => u.id === currentUser.id && u.status === "activo",
+      internalUsers.some(
+        (u) => u.id === currentUser.id && u.status !== "activo",
       )
-    )
+    ) {
       logout("Tu cuenta fue suspendida o eliminada.");
+    }
   }, [internalUsers]);
 
   // Alertas automáticas de stock bajo (CU-03)
@@ -991,9 +1047,23 @@ function AppMain({
     };
   }, [role]);
 
-  function logout(msg = "") {
-    if (currentClientId)
-      setSavedCarts((s) => ({ ...s, [currentClientId]: cart }));
+    async function logout(msg = "") {
+    // Guardar el carrito del cliente antes de cerrar sesión.
+    if (currentClientId) {
+      setSavedCarts((s) => ({
+        ...s,
+        [currentClientId]: cart,
+      }));
+    }
+
+    // Destruir la sesión del backend.
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error("No se pudo cerrar la sesión en el servidor:", error);
+    }
+
+    // Limpiar el estado local aunque falle la petición al servidor.
     setRole(null);
     setCurrentUser(null);
     setCurrentClientId(null);
@@ -1262,6 +1332,10 @@ function AppMain({
       }}
     />
   );
+  if (authLoading) {
+    return <PageLoading />;
+  }
+  
   if (view === "login")
     return (
       <Suspense

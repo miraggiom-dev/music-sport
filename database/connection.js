@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { schema } from './schema.js';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(currentDirectory, '..');
@@ -20,6 +21,9 @@ db.pragma('foreign_keys = ON');
 // Mejorar la gestión de lecturas y escrituras
 db.pragma('journal_mode = WAL');
 
-console.log('Base de datos SQLite conectada correctamente.');
+// Crear las tablas si todavía no existen
+db.exec(schema);
+
+console.log('Base de datos Music&Sport conectada y esquema inicializado.');
 
 export default db;
