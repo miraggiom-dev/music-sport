@@ -12,3 +12,6 @@ guidelines/
 *.log
 .DS_Store
 Thumbs.db
+
+/data/
+*.db

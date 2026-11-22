@@ -1,47 +1,27 @@
+
 import { useEffect, useState } from "react";
-const LOCK_ATTEMPTS = 3;
-const LOCK_MINUTES = 5;
 import {
   AlertTriangle,
   CheckCircle,
   ChevronLeft,
   Mail,
-  KeyRound,
   Lock,
 } from "lucide-react";
-import { toast as notify } from "sonner";
 import type {
   Account,
-  AddToCart,
-  Billing,
-  CartItem,
-  ChangeStatus,
-  Client,
-  InternalUser,
   Lockout,
-  Order,
-  Product,
-  Role,
   View,
 } from "@/types";
 import {
   isValidEmail,
-  isValidPass,
   Logo,
   Input,
 } from "@/components/shared";
-import {
-  FALLBACK_IMG,
-  calcTotals,
-  taxLabel,
-  toISODate,
-  ConfirmDialog,
-  BS_METHODS,
-  isValidDocId,
-  useRate,
-  rateNote,
-} from "@/components/shared";
 import { AuthShell } from "./AuthShell";
+import { authService } from "@/services/authService";
+
+const LOCK_ATTEMPTS = 3;
+const LOCK_MINUTES = 5;
 
 export function LoginView({
   setView,
@@ -60,105 +40,157 @@ export function LoginView({
   resetPassword: (a: Account, pass: string) => void;
   notice: string;
 }) {
+  void findAccount;
+  void resetPassword;
+
   const [mode, setMode] = useState<
-    "login" | "recover-email" | "recover-code" | "recover-done"
+    "login" | "recover-email" | "recover-done"
   >("login");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
-  const [rec, setRec] = useState({ code: "", sent: "", pass: "", confirm: "" });
+  const [submitting, setSubmitting] = useState(false);
+
   const key = email.trim().toLowerCase();
   const lock = lockouts[key];
+
   const lockedFor =
-    lock && lock.until > now ? Math.ceil((lock.until - now) / 1000) : 0;
+    lock && lock.until > now
+      ? Math.ceil((lock.until - now) / 1000)
+      : 0;
 
   useEffect(() => {
     if (!lockedFor) return;
+
     const t = setInterval(() => setNow(Date.now()), 1000);
+
     return () => clearInterval(t);
   }, [lockedFor]);
 
-  const handleLogin = () => {
+  // Inicio de sesión conectado al backend
+  const handleLogin = async () => {
+    if (submitting) return;
+
     setNow(Date.now());
+
     const e: Record<string, string> = {};
+
     if (!key) e.email = "Ingresa tu correo";
-    else if (!isValidEmail(key)) e.email = "Formato de correo inválido";
+    else if (!isValidEmail(key)) {
+      e.email = "Formato de correo inválido";
+    }
+
     if (!password) e.password = "Ingresa tu contraseña";
+
     setErrors(e);
     setError("");
+
     if (Object.keys(e).length) return;
     if (lock && lock.until > Date.now()) return;
 
-    const acc = findAccount(key);
-    if (acc && acc.user.password === password) {
-      if (acc.kind === "staff" && acc.user.status === "inactivo") {
-        setError("Cuenta suspendida. Contacta al administrador.");
-        return;
+    setSubmitting(true);
+
+    try {
+      const user = await authService.login(key, password);
+
+      let account: Account;
+
+      if (user.role === "client") {
+        if (!user.clientId) {
+          throw new Error(
+            "La cuenta no tiene un perfil de cliente válido.",
+          );
+        }
+
+        account = {
+          kind: "client",
+          user: {
+            id: String(user.clientId),
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            address: user.address ?? "",
+            docId: user.docId ?? "",
+            createdAt: user.createdAt,
+            password: "",
+          },
+        };
+      } else {
+        account = {
+          kind: "staff",
+          user: {
+            id: String(user.id),
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            role: user.role as "admin" | "vendor",
+            status: user.status === "inactivo"
+              ? "inactivo"
+              : "activo",
+            createdAt: user.createdAt,
+            password: "",
+          },
+        };
       }
+
       setLockouts((l) => {
         const n = { ...l };
         delete n[key];
         return n;
       });
-      onLogin(acc);
-      return;
-    }
-    const attempts =
-      (lock && lock.until <= Date.now() && lock.until > 0
-        ? 0
-        : (lock?.attempts ?? 0)) + 1;
-    if (attempts >= LOCK_ATTEMPTS) {
-      setLockouts((l) => ({
-        ...l,
-        [key]: { attempts, until: Date.now() + LOCK_MINUTES * 60000 },
-      }));
-      setError(
-        `Demasiados intentos fallidos. Acceso bloqueado por ${LOCK_MINUTES} minutos.`,
-      );
-    } else {
-      setLockouts((l) => ({ ...l, [key]: { attempts, until: 0 } }));
-      setError(
-        `Correo o contraseña incorrectos. Te queda(n) ${LOCK_ATTEMPTS - attempts} intento(s).`,
-      );
+
+      onLogin(account);
+
+    } catch (err) {
+      const attempts =
+        (lock && lock.until <= Date.now() && lock.until > 0
+          ? 0
+          : lock?.attempts ?? 0) + 1;
+
+      if (attempts >= LOCK_ATTEMPTS) {
+        setLockouts((l) => ({
+          ...l,
+          [key]: {
+            attempts,
+            until: Date.now() + LOCK_MINUTES * 60000,
+          },
+        }));
+
+        setError(
+          `Demasiados intentos fallidos. Acceso bloqueado por ${LOCK_MINUTES} minutos.`,
+        );
+      } else {
+        setLockouts((l) => ({
+          ...l,
+          [key]: { attempts, until: 0 },
+        }));
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : `Correo o contraseña incorrectos. Te queda(n) ${LOCK_ATTEMPTS - attempts} intento(s).`,
+        );
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  // Recuperación pendiente de implementar con envío real de correo
   const sendCode = () => {
     if (!isValidEmail(key)) {
-      setErrors({ email: "Formato de correo inválido" });
+      setErrors({
+        email: "Formato de correo inválido",
+      });
       return;
     }
-    if (!findAccount(key)) {
-      setErrors({ email: "No existe una cuenta registrada con ese correo" });
-      return;
-    }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setRec({ code: "", sent: code, pass: "", confirm: "" });
-    setErrors({});
-    notify.info(`Enlace de recuperación enviado a ${key}`, {
-      description: `Simulación: tu código es ${code}`,
-      duration: 15000,
+
+    setErrors({
+      email: "La recuperación de contraseña estará disponible próximamente.",
     });
-    setMode("recover-code");
-  };
-  const confirmReset = () => {
-    const e: Record<string, string> = {};
-    if (rec.code.trim() !== rec.sent) e.code = "Código incorrecto";
-    if (!isValidPass(rec.pass)) e.pass = "Entre 6 y 50 caracteres";
-    if (rec.pass !== rec.confirm) e.confirm = "Las contraseñas no coinciden";
-    setErrors(e);
-    if (Object.keys(e).length) return;
-    const acc = findAccount(key);
-    if (acc) resetPassword(acc, rec.pass);
-    setLockouts((l) => {
-      const n = { ...l };
-      delete n[key];
-      return n;
-    });
-    setPassword("");
-    setMode("recover-done");
   };
 
   const field = (
@@ -175,10 +207,12 @@ export function LoginView({
       <label className="block text-xs font-semibold text-gray-600 mb-1">
         {label}
       </label>
+
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
           {icon}
         </span>
+
         <Input
           value={value}
           onChange={(e) => {
@@ -188,51 +222,78 @@ export function LoginView({
           type={type}
           placeholder={placeholder}
           onKeyDown={(e) => e.key === "Enter" && onEnter()}
-          className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${errors[k] ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}
+          className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${
+            errors[k]
+              ? "border-red-400 bg-red-50"
+              : "border-gray-200 bg-gray-50"
+          }`}
         />
       </div>
-      {errors[k] && <p className="text-red-500 text-xs mt-1">{errors[k]}</p>}
+
+      {errors[k] && (
+        <p className="text-red-500 text-xs mt-1">
+          {errors[k]}
+        </p>
+      )}
     </div>
   );
-  const banner = (tone: "red" | "amber" | "green", text: string) => (
+
+  const banner = (
+    tone: "red" | "amber" | "green",
+    text: string,
+  ) => (
     <div
-      className={`rounded-xl px-4 py-3 mb-4 flex items-start gap-2 text-xs border ${tone === "red" ? "bg-red-50 border-red-200 text-red-600" : tone === "amber" ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-green-50 border-green-200 text-green-700"}`}
+      className={`rounded-xl px-4 py-3 mb-4 flex items-start gap-2 text-xs border ${
+        tone === "red"
+          ? "bg-red-50 border-red-200 text-red-600"
+          : tone === "amber"
+            ? "bg-amber-50 border-amber-200 text-amber-700"
+            : "bg-green-50 border-green-200 text-green-700"
+      }`}
     >
       {tone === "green" ? (
         <CheckCircle size={14} className="mt-0.5 shrink-0" />
       ) : (
         <AlertTriangle size={14} className="mt-0.5 shrink-0" />
       )}
+
       <p>{text}</p>
     </div>
   );
+
   const title = (t: string, sub: string) => (
     <>
       <div className="flex justify-center mb-6">
         <Logo size={44} />
       </div>
+
       <h2
         className="text-2xl font-black text-center text-[#000080] mb-1"
         style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
       >
         {t}
       </h2>
-      <p className="text-center text-gray-400 text-sm mb-6">{sub}</p>
+
+      <p className="text-center text-gray-400 text-sm mb-6">
+        {sub}
+      </p>
     </>
   );
+
   const back = () => {
     setMode("login");
     setErrors({});
     setError("");
   };
 
-  if (mode === "recover-email")
+  if (mode === "recover-email") {
     return (
       <AuthShell>
         {title(
           "Recuperar contraseña",
-          "Te enviaremos un código a tu correo registrado",
+          "La recuperación estará disponible próximamente",
         )}
+
         <div className="space-y-4">
           {field(
             "email",
@@ -244,12 +305,14 @@ export function LoginView({
             sendCode,
             "correo@ejemplo.com",
           )}
+
           <button
             onClick={sendCode}
             className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25]"
           >
-            Enviar código
+            Solicitar recuperación
           </button>
+
           <button
             onClick={back}
             className="w-full text-sm text-gray-500 hover:text-[#C8102E] flex items-center justify-center gap-1"
@@ -260,74 +323,30 @@ export function LoginView({
         </div>
       </AuthShell>
     );
-  if (mode === "recover-code")
-    return (
-      <AuthShell>
-        {title("Nueva contraseña", `Ingresa el código enviado a ${key}`)}
-        <div className="space-y-4">
-          {field(
-            "code",
-            "Código de verificación",
-            <KeyRound size={15} />,
-            rec.code,
-            (v) => setRec((r) => ({ ...r, code: v })),
-            "text",
-            confirmReset,
-            "6 dígitos",
-          )}
-          {field(
-            "pass",
-            "Nueva contraseña",
-            <Lock size={15} />,
-            rec.pass,
-            (v) => setRec((r) => ({ ...r, pass: v })),
-            "password",
-            confirmReset,
-          )}
-          {field(
-            "confirm",
-            "Confirmar contraseña",
-            <Lock size={15} />,
-            rec.confirm,
-            (v) => setRec((r) => ({ ...r, confirm: v })),
-            "password",
-            confirmReset,
-          )}
-          <button
-            onClick={confirmReset}
-            className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25]"
-          >
-            Restablecer contraseña
-          </button>
-          <button
-            onClick={sendCode}
-            className="w-full text-xs text-gray-500 hover:text-[#C8102E]"
-          >
-            Reenviar código
-          </button>
-          <button
-            onClick={back}
-            className="w-full text-sm text-gray-500 hover:text-[#C8102E] flex items-center justify-center gap-1"
-          >
-            <ChevronLeft size={14} />
-            Cancelar
-          </button>
-        </div>
-      </AuthShell>
-    );
+  }
 
   return (
     <AuthShell>
-      {title("Iniciar sesión", "Ingresa tus credenciales para continuar")}
+      {title(
+        "Iniciar sesión",
+        "Ingresa tus credenciales para continuar",
+      )}
+
       {mode === "recover-done" &&
-        banner("green", "Contraseña actualizada. Ya puedes iniciar sesión.")}
+        banner(
+          "green",
+          "Contraseña actualizada. Ya puedes iniciar sesión.",
+        )}
+
       {notice && !error && banner("amber", notice)}
+
       {lockedFor > 0
         ? banner(
-          "red",
-          `Cuenta bloqueada por intentos fallidos. Intenta de nuevo en ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")} o recupera tu contraseña.`,
-        )
+            "red",
+            `Cuenta bloqueada por intentos fallidos. Intenta de nuevo en ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")} o recupera tu contraseña.`,
+          )
         : error && banner("red", error)}
+
       <div className="space-y-4">
         {field(
           "email",
@@ -342,6 +361,7 @@ export function LoginView({
           handleLogin,
           "correo@ejemplo.com",
         )}
+
         {field(
           "password",
           "Contraseña",
@@ -352,6 +372,7 @@ export function LoginView({
           handleLogin,
           "••••••••",
         )}
+
         <div className="flex justify-end -mt-2">
           <button
             onClick={() => {
@@ -364,14 +385,20 @@ export function LoginView({
             ¿Olvidaste tu contraseña?
           </button>
         </div>
+
         <button
           onClick={handleLogin}
-          disabled={lockedFor > 0}
+          disabled={lockedFor > 0 || submitting}
           className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {lockedFor > 0 ? "Acceso bloqueado" : "Ingresar"}
+          {lockedFor > 0
+            ? "Acceso bloqueado"
+            : submitting
+              ? "Verificando..."
+              : "Ingresar"}
         </button>
       </div>
+
       <p className="text-center text-sm text-gray-400 mt-4">
         ¿No tienes cuenta?{" "}
         <button
@@ -381,6 +408,7 @@ export function LoginView({
           Regístrate
         </button>
       </p>
+
       <button
         onClick={() => setView("catalog")}
         className="w-full text-center text-xs text-gray-400 hover:text-gray-600 mt-2"
