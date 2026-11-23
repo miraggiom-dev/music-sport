@@ -1,103 +1,26 @@
-import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  BarChart2,
-  Bell,
-  CheckCircle,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Coins,
-  Download,
-  Edit2,
-  Eye,
-  EyeOff,
-  FileText,
-  Home,
-  Info,
-  Layers,
-  LogOut,
-  Mail,
-  MapPin,
-  Menu,
-  Minus,
-  Package,
-  Phone,
-  Printer,
-  RefreshCw,
-  Save,
-  Search,
-  ShieldCheck,
-  ShoppingBag,
-  ShoppingCart,
-  Star,
-  Tag,
-  Truck,
-  User,
-  Users,
-  X,
-  XCircle,
-  Plus,
-  Trash2,
-  DollarSign,
-  Calendar,
-  KeyRound,
-  Lock,
-  Clock,
-} from "lucide-react";
+import { useState } from "react";
+import { Calendar, Printer, ShoppingBag } from "lucide-react";
+import type { ChangeStatus, Order } from "@/types";
 import { toast as notify } from "sonner";
-import type {
-  TaxType,
-  Account,
-  AddToCart,
-  Billing,
-  CartItem,
-  ChangeStatus,
-  Client,
-  InternalUser,
-  Lockout,
-  Order,
-  Product,
-  Role,
-  View,
-} from "@/types";
 import {
-  BsRef,
   fmt,
   fmtBs,
-  fmtDateTime,
   fmtDay,
-  isValidEmail,
-  isValidName,
-  isValidPass,
-  isValidPhone,
-  isValidSku,
-  onImgError,
   PAID_STATUSES,
-  OPEN_STATUSES,
   ORDER_STATUSES,
   printReceipt,
   statusLabel,
   StatusBadge,
-  Logo,
-  Input,
-  StatCard,
-  StatusFilter,
-  OrderDetailModal,
-} from "@/components/shared";
-import {
-  FALLBACK_IMG,
-  calcTotals,
-  taxLabel,
-  toISODate,
   ConfirmDialog,
-  BS_METHODS,
-  isValidDocId,
-  useRate,
-  rateNote,
 } from "@/components/shared";
-import logoImg from "@/imports/Logo.png";
+
+const orderMoney = (order: Order, amount: number) => {
+  if (order.currency === "VES" && order.rate) {
+    return fmtBs(amount * order.rate.value);
+  }
+  return fmt(amount);
+};
+
 export function ClientOrders({
   orders,
   clientId,
@@ -111,13 +34,16 @@ export function ClientOrders({
   const [to, setTo] = useState("");
   const [status, setStatus] = useState("todas");
   const [cancelId, setCancelId] = useState<string | null>(null);
+
   const myOrders = orders
     .filter((o) => o.clientId === clientId)
     .sort((a, b) => b.date.localeCompare(a.date));
+
   const rangeError =
     from && to && from > to
       ? "La fecha inicial no puede ser posterior a la final"
       : "";
+
   const filtered = rangeError
     ? []
     : myOrders.filter(
@@ -126,10 +52,14 @@ export function ClientOrders({
           (!to || o.date <= to) &&
           (status === "todas" || o.status === status),
       );
+
   const hasFilters = from || to || status !== "todas";
+
   const spent = filtered
     .filter((o) => PAID_STATUSES.includes(o.status))
     .reduce((a, o) => a + o.total, 0);
+
+  const hasVesOrders = filtered.some((o) => o.currency === "VES" && o.rate);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
@@ -139,6 +69,7 @@ export function ClientOrders({
       >
         Historial de compras
       </h1>
+
       {myOrders.length === 0 ? (
         <div className="text-center py-20">
           <ShoppingBag size={48} className="mx-auto text-gray-200 mb-3" />
@@ -161,6 +92,7 @@ export function ClientOrders({
                   className={`w-full px-3 py-2 rounded-lg border text-sm ${rangeError ? "border-red-400" : "border-gray-200"}`}
                 />
               </div>
+
               <div>
                 <label className="flex items-center gap-1 text-xs font-semibold text-gray-600 mb-1">
                   <Calendar size={12} />
@@ -174,6 +106,7 @@ export function ClientOrders({
                   className={`w-full px-3 py-2 rounded-lg border text-sm ${rangeError ? "border-red-400" : "border-gray-200"}`}
                 />
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">
                   Estado
@@ -185,11 +118,14 @@ export function ClientOrders({
                 >
                   {["todas", ...ORDER_STATUSES].map((s) => (
                     <option key={s} value={s}>
-                      {s}
+                      {s === "todas"
+                        ? s
+                        : statusLabel[s as keyof typeof statusLabel]}
                     </option>
                   ))}
                 </select>
               </div>
+
               <button
                 onClick={() => {
                   setFrom("");
@@ -202,11 +138,21 @@ export function ClientOrders({
                 Limpiar
               </button>
             </div>
+
             {rangeError && <p className="text-red-500 text-xs">{rangeError}</p>}
+
             <p className="text-xs text-gray-400">
-              {filtered.length} orden(es) · {fmt(spent)} pagado
+              {filtered.length} orden(es) · {fmt(spent)} pagado en USD
             </p>
+
+            {hasVesOrders && (
+              <p className="text-xs text-gray-400">
+                Los pedidos en bolívares se muestran con la tasa histórica de
+                cada orden.
+              </p>
+            )}
           </div>
+
           {filtered.length === 0 ? (
             <div className="text-center py-12 text-gray-400 text-sm">
               No hay órdenes en el rango seleccionado
@@ -224,10 +170,13 @@ export function ClientOrders({
                         {o.id}
                       </span>
                       <span className="mx-2 text-gray-300">·</span>
-                      <span className="text-xs text-gray-400">{fmtDay(o.date)}</span>
+                      <span className="text-xs text-gray-400">
+                        {fmtDay(o.date)}
+                      </span>
                     </div>
                     <StatusBadge status={o.status} />
                   </div>
+
                   <div className="px-5 py-3 space-y-1.5">
                     {o.items.map((item, i) => (
                       <div
@@ -238,20 +187,33 @@ export function ClientOrders({
                           {item.productName ?? item.product.name} ×{item.qty}
                         </span>
                         <span className="font-medium shrink-0">
-                          {fmt((item.unitPrice ?? item.product.price) * item.qty)}
+                          {orderMoney(
+                            o,
+                            (item.unitPrice ?? item.product.price) * item.qty,
+                          )}
                         </span>
                       </div>
                     ))}
+
                     {o.rejectReason && (
                       <p className="text-xs text-red-600 pt-1">
                         Pago rechazado: {o.rejectReason}
                       </p>
                     )}
+
+                    {o.currency === "VES" && o.rate && (
+                      <p className="text-[10px] text-gray-400 pt-2">
+                        {o.rate.name}: {o.rate.value} Bs/USD · Tasa del{" "}
+                        {fmtDay(o.rate.updatedAt)}
+                      </p>
+                    )}
                   </div>
+
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3 bg-gray-50 border-t border-gray-100">
                     <span className="text-xs text-gray-400 truncate">
                       {o.billing.method} · {o.address}
                     </span>
+
                     <div className="flex items-center gap-3 justify-between sm:justify-end">
                       {o.status === "pendiente" && (
                         <button
@@ -261,6 +223,7 @@ export function ClientOrders({
                           Cancelar orden
                         </button>
                       )}
+
                       {o.receiptNo && (
                         <button
                           onClick={() => printReceipt(o)}
@@ -270,14 +233,21 @@ export function ClientOrders({
                           Recibo
                         </button>
                       )}
+
                       <span className="text-right">
                         <span className="block font-bold text-[#C8102E]">
-                          {fmt(o.total)}
+                          {orderMoney(o, o.total)}
                         </span>
-                        {o.rate && (
+
+                        {o.currency === "VES" && (
                           <span className="block text-[10px] text-gray-400">
-                            {o.currency === "VES" ? "Pagado " : "Ref. "}
-                            {fmtBs(o.total * o.rate.value)}
+                            Pago en bolívares
+                          </span>
+                        )}
+
+                        {o.currency !== "VES" && o.rate && (
+                          <span className="block text-[10px] text-gray-400">
+                            Ref. {fmtBs(o.total * o.rate.value)}
                           </span>
                         )}
                       </span>
@@ -289,6 +259,7 @@ export function ClientOrders({
           )}
         </>
       )}
+
       {cancelId && (
         <ConfirmDialog
           title="¿Cancelar esta orden?"

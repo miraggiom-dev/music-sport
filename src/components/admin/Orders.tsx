@@ -5,6 +5,7 @@ import { toast as notify } from "sonner";
 import {
   ConfirmDialog,
   fmt,
+  fmtBs,
   NEXT_STATUS,
   ORDER_STATUSES,
   printReceipt,
@@ -16,10 +17,17 @@ import {
 
 const orderNumber = (id: string) => Number(id.replace(/\D/g, "")) || 0;
 
-// Las órdenes solo guardan la fecha (sin hora): para el mismo día se
-// desempata por el número de orden, que es correlativo.
 export const newestFirst = (a: Order, b: Order) =>
   b.date.localeCompare(a.date) || orderNumber(b.id) - orderNumber(a.id);
+
+// Los pedidos en VES utilizan exclusivamente la tasa histórica guardada
+// en la orden, nunca la tasa de cambio actualmente activa.
+const orderMoney = (order: Order, amount: number) => {
+  if (order.currency === "VES" && order.rate) {
+    return fmtBs(amount * order.rate.value);
+  }
+  return fmt(amount);
+};
 
 function OrderDetailModal({
   order,
@@ -29,6 +37,7 @@ function OrderDetailModal({
   onClose: () => void;
 }) {
   const b = order.billing;
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-full overflow-y-auto">
@@ -46,6 +55,7 @@ function OrderDetailModal({
             <X size={18} />
           </button>
         </div>
+
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div>
@@ -96,10 +106,12 @@ function OrderDetailModal({
               </div>
             )}
           </div>
+
           <div className="border-t pt-3">
             <h4 className="font-semibold text-gray-700 text-sm mb-2">
               Artículos
             </h4>
+
             <div className="space-y-2">
               {order.items.map((item, i) => (
                 <div
@@ -110,24 +122,35 @@ function OrderDetailModal({
                     {item.productName ?? item.product.name} × {item.qty}
                   </span>
                   <span className="font-semibold shrink-0">
-                    {fmt(orderLineUnitPrice(item) * item.qty)}
+                    {orderMoney(order, orderLineUnitPrice(item) * item.qty)}
                   </span>
                 </div>
               ))}
+
               <div className="flex justify-between text-sm text-gray-500 pt-1">
                 <span>Subtotal</span>
-                <span>{fmt(order.subtotal)}</span>
+                <span>{orderMoney(order, order.subtotal)}</span>
               </div>
+
               <div className="flex justify-between text-sm text-gray-500">
                 <span>{taxLabel(order.taxType)}</span>
-                <span>{fmt(order.tax)}</span>
+                <span>{orderMoney(order, order.tax)}</span>
               </div>
+
               <div className="flex justify-between font-bold text-[#C8102E] pt-1">
                 <span>Total</span>
-                <span>{fmt(order.total)}</span>
+                <span>{orderMoney(order, order.total)}</span>
               </div>
+
+              {order.currency === "VES" && order.rate && (
+                <p className="text-xs text-gray-400 text-right pt-1">
+                  {order.rate.name}: {order.rate.value} Bs/USD · Tasa del{" "}
+                  {new Date(order.rate.updatedAt).toLocaleDateString("es-VE")}
+                </p>
+              )}
             </div>
           </div>
+
           {order.receiptNo && (
             <button
               onClick={() => printReceipt(order)}
@@ -159,6 +182,7 @@ function StatusFilter({
           s === "todas"
             ? orders.length
             : orders.filter((o) => o.status === s).length;
+
         return (
           <button
             key={s}
@@ -194,7 +218,9 @@ export function AdminOrders({
     next: OrderStatus;
   } | null>(null);
   const [reason, setReason] = useState("");
+
   const detail = orders.find((o) => o.id === detailId) ?? null;
+
   const filtered = orders
     .filter((o) => statusFilter === "todas" || o.status === statusFilter)
     .filter((o) =>
@@ -218,11 +244,13 @@ export function AdminOrders({
           className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30"
         />
       </div>
+
       <StatusFilter
         value={statusFilter}
         onChange={setStatusFilter}
         orders={orders}
       />
+
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -246,6 +274,7 @@ export function AdminOrders({
                 ))}
               </tr>
             </thead>
+
             <tbody>
               {filtered.map((o) => (
                 <tr
@@ -255,24 +284,30 @@ export function AdminOrders({
                   <td className="px-5 py-3 font-mono text-xs text-[#000080] font-semibold whitespace-nowrap">
                     {o.id}
                   </td>
+
                   <td className="px-5 py-3">
                     <p className="font-medium text-gray-800 whitespace-nowrap">
                       {o.clientName}
                     </p>
                     <p className="text-xs text-gray-400">{o.clientEmail}</p>
                   </td>
+
                   <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">
                     {o.items.reduce((a, i) => a + i.qty, 0)} artículo(s)
                   </td>
-                  <td className="px-5 py-3 font-semibold text-gray-800">
-                    {fmt(o.total)}
+
+                  <td className="px-5 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                    {orderMoney(o, o.total)}
                   </td>
+
                   <td className="px-5 py-3">
                     <StatusBadge status={o.status} />
                   </td>
+
                   <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">
                     {o.date}
                   </td>
+
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -282,6 +317,7 @@ export function AdminOrders({
                       >
                         <Eye size={14} />
                       </button>
+
                       {o.receiptNo && (
                         <button
                           onClick={() => printReceipt(o)}
@@ -291,6 +327,7 @@ export function AdminOrders({
                           <Printer size={14} />
                         </button>
                       )}
+
                       {NEXT_STATUS[o.status].length > 0 && (
                         <select
                           value=""
@@ -319,6 +356,7 @@ export function AdminOrders({
                   </td>
                 </tr>
               ))}
+
               {filtered.length === 0 && (
                 <tr>
                   <td
@@ -333,9 +371,11 @@ export function AdminOrders({
           </table>
         </div>
       </div>
+
       {detail && (
         <OrderDetailModal order={detail} onClose={() => setDetailId(null)} />
       )}
+
       {pending && (
         <ConfirmDialog
           title={
@@ -354,6 +394,7 @@ export function AdminOrders({
               notify.error("Indica el motivo de la cancelación");
               return;
             }
+
             changeStatus(
               pending.order.id,
               pending.next,
@@ -361,6 +402,7 @@ export function AdminOrders({
                 ? { rejectReason: reason.trim() }
                 : {},
             );
+
             setPending(null);
             setReason("");
           }}

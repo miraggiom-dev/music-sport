@@ -2,23 +2,23 @@ import type { ExchangeRate, InternalUser } from "@/types";
 import { AlertTriangle, Coins, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast as notify } from "sonner";
+import { rateService } from "@/services/rateService";
 import { fmtDateTime, RATE_STALE_HOURS, rateAgeHours } from "./shared";
 
-// Acepta "873,87", "1.234" y "1.234,56". La coma es el separador decimal;
-// los puntos solo se aceptan como separadores de miles.
 export function parseRateInput(raw: string): number | null {
   const v = raw.trim();
   let normalized: string;
-  if (
-    /^\d{1,3}(\.\d{3})+(,\d{1,4})?$/.test(v)
-  ) {
+
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,4})?$/.test(v)) {
     normalized = v.replace(/\./g, "").replace(",", ".");
   } else if (/^\d{1,6}(,\d{1,4})?$/.test(v)) {
     normalized = v.replace(",", ".");
   } else {
     return null;
   }
+
   const n = Number(normalized);
+
   return n > 0 && n < 1_000_000 ? Math.round(n * 10000) / 10000 : null;
 }
 
@@ -41,6 +41,7 @@ export function AdminRates({
   const [makeActive, setMakeActive] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [toDelete, setToDelete] = useState<ExchangeRate | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const sorted = [...rates].sort(
     (a, b) =>
@@ -55,9 +56,18 @@ export function AdminRates({
     setErrors({});
   };
 
-  const closeModal = () => setModal(null);
+  const closeModal = () => {
+    if (!saving) setModal(null);
+  };
 
-  const save = () => {
+  const refreshRates = async () => {
+    const updated = await rateService.getAll();
+    setRates(updated);
+  };
+
+  const save = async () => {
+    if (!modal || saving) return;
+
     const nextErrors: Record<string, string> = {};
     const normalizedName = name.trim();
     const parsedValue = parseRateInput(value);
@@ -67,67 +77,75 @@ export function AdminRates({
     } else if (
       rates.some(
         (rate) =>
-          rate.id !== modal?.rate?.id &&
+          rate.id !== modal.rate?.id &&
           rate.name.toLowerCase() === normalizedName.toLowerCase(),
       )
     ) {
       nextErrors.name = "Ya existe una tasa con ese nombre";
     }
+
     if (parsedValue === null) {
       nextErrors.value = "Valor positivo, máx. 4 decimales (ej. 873,87)";
     }
+
     if (Object.keys(nextErrors).length || parsedValue === null) {
       setErrors(nextErrors);
       return;
     }
 
-    const stamp = {
-      updatedAt: new Date().toISOString(),
-      userId: currentUserId,
-    };
-    let nextRates = modal?.rate
-      ? rates.map((rate) =>
-          rate.id === modal.rate!.id
-            ? {
-                ...rate,
-                name: normalizedName,
-                value: parsedValue,
-                ...stamp,
-              }
-            : rate,
-        )
-      : [
-          ...rates,
-          {
-            id: `T${Date.now()}`,
-            name: normalizedName,
-            value: parsedValue,
-            active: false,
-            ...stamp,
-          },
-        ];
+    setSaving(true);
 
-    const savedId = modal?.rate?.id ?? nextRates[nextRates.length - 1].id;
-    if (makeActive) {
-      nextRates = nextRates.map((rate) => ({
-        ...rate,
-        active: rate.id === savedId,
-      }));
-    } else if (modal?.rate) {
-      nextRates = nextRates.map((rate) =>
-        rate.id === modal.rate!.id ? { ...rate, active: false } : rate,
+    try {
+      const payload = {
+        name: normalizedName,
+        value: parsedValue,
+        active: makeActive,
+      };
+
+      if (modal.rate) {
+        await rateService.update(modal.rate.id, payload);
+      } else {
+        await rateService.create(payload);
+      }
+
+      await refreshRates();
+      setModal(null);
+
+      notify.success(modal.rate ? "Tasa actualizada" : "Tasa registrada");
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "No se pudo guardar la tasa.",
       );
+    } finally {
+      setSaving(false);
     }
-    setRates(nextRates);
-    closeModal();
-    notify.success(modal?.rate ? "Tasa actualizada" : "Tasa registrada");
   };
 
-  const remove = () => {
+  const activate = async (rate: ExchangeRate) => {
+    try {
+      await rateService.activate(rate.id);
+      await refreshRates();
+      notify.success(`${rate.name} es ahora la tasa activa`);
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "No se pudo activar la tasa.",
+      );
+    }
+  };
+
+  const remove = async () => {
     if (!toDelete) return;
-    setRates(rates.filter((rate) => rate.id !== toDelete.id));
-    setToDelete(null);
-    notify.success("Tasa eliminada");
+
+    try {
+      await rateService.remove(toDelete.id);
+      await refreshRates();
+      setToDelete(null);
+      notify.success("Tasa eliminada");
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "No se pudo eliminar la tasa.",
+      );
+    }
   };
 
   return (
@@ -138,6 +156,7 @@ export function AdminRates({
           mostrar el equivalente en bolívares y para los pagos por transferencia
           o pago móvil. Actualízala a diario.
         </p>
+
         <button
           type="button"
           onClick={() => openModal()}
@@ -160,24 +179,30 @@ export function AdminRates({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {sorted.map((rate) => {
             const stale = rateAgeHours(rate) > RATE_STALE_HOURS;
+
             return (
               <div
                 key={rate.id}
-                className={`rounded-xl border bg-white p-5 shadow-sm ${rate.active ? "border-[#000080]" : "border-gray-100"}`}
+                className={`rounded-xl border bg-white p-5 shadow-sm ${
+                  rate.active ? "border-[#000080]" : "border-gray-100"
+                }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-bold text-gray-800">{rate.name}</p>
+
                     <p className="text-2xl font-black text-[#000080]">
                       {rate.value.toLocaleString("es-VE", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 4,
                       })}
+
                       <span className="ml-1 text-sm font-normal text-gray-400">
                         Bs/USD
                       </span>
                     </p>
                   </div>
+
                   {rate.active ? (
                     <span className="rounded-full bg-[#000080] px-2 py-0.5 text-xs text-white">
                       Activa
@@ -185,34 +210,26 @@ export function AdminRates({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        const stamp = {
-                          updatedAt: new Date().toISOString(),
-                          userId: currentUserId,
-                        };
-                        setRates(
-                          rates.map((item) =>
-                            item.id === rate.id
-                              ? { ...item, active: true, ...stamp }
-                              : { ...item, active: false },
-                          ),
-                        );
-                        notify.success(`${rate.name} es ahora la tasa activa`);
-                      }}
+                      onClick={() => void activate(rate)}
                       className="rounded border px-2 py-1 text-xs"
                     >
                       Usar como activa
                     </button>
                   )}
                 </div>
+
                 <p
-                  className={`mt-3 text-xs ${stale ? "text-amber-700" : "text-gray-400"}`}
+                  className={`mt-3 text-xs ${
+                    stale ? "text-amber-700" : "text-gray-400"
+                  }`}
                 >
                   {stale && <AlertTriangle size={11} className="mr-1 inline" />}
                   Actualizada {fmtDateTime(rate.updatedAt)} por{" "}
-                  {users.find((user) => user.id === rate.userId)?.name ??
-                    "Usuario eliminado"}
+                  {rate.updatedByName ||
+                    users.find((user) => user.id === rate.userId)?.name ||
+                    "Usuario"}
                 </p>
+
                 <div className="mt-4 flex gap-2">
                   <button
                     type="button"
@@ -222,6 +239,7 @@ export function AdminRates({
                     <RefreshCw size={13} className="mr-1 inline" />
                     Actualizar
                   </button>
+
                   <button
                     type="button"
                     onClick={() =>
@@ -258,6 +276,7 @@ export function AdminRates({
               <h2 id="rate-modal-title" className="font-bold text-[#000080]">
                 {modal.rate ? "Actualizar tasa" : "Nueva tasa"}
               </h2>
+
               <button
                 type="button"
                 onClick={closeModal}
@@ -267,6 +286,7 @@ export function AdminRates({
                 <X size={18} />
               </button>
             </div>
+
             <div className="space-y-4">
               <div>
                 <label
@@ -275,17 +295,22 @@ export function AdminRates({
                 >
                   Nombre <span className="text-gray-500">*</span>
                 </label>
+
                 <input
                   id="rate-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Ej. Dólar BCV, Euro BCV..."
-                  className={`w-full rounded-xl border bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none placeholder:text-gray-400 focus:border-[#000080] ${errors.name ? "border-red-400" : "border-gray-200"}`}
+                  className={`w-full rounded-xl border bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none placeholder:text-gray-400 focus:border-[#000080] ${
+                    errors.name ? "border-red-400" : "border-gray-200"
+                  }`}
                 />
+
                 {errors.name && (
                   <p className="mt-1 text-xs text-red-500">{errors.name}</p>
                 )}
               </div>
+
               <div>
                 <label
                   htmlFor="rate-value"
@@ -293,18 +318,23 @@ export function AdminRates({
                 >
                   Valor (Bs. por 1 USD) <span className="text-gray-500">*</span>
                 </label>
+
                 <input
                   id="rate-value"
                   inputMode="decimal"
                   value={value}
                   onChange={(event) => setValue(event.target.value)}
                   placeholder="Ej. 873,87"
-                  className={`w-full rounded-xl border bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none placeholder:text-gray-400 focus:border-[#000080] ${errors.value ? "border-red-400" : "border-gray-200"}`}
+                  className={`w-full rounded-xl border bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none placeholder:text-gray-400 focus:border-[#000080] ${
+                    errors.value ? "border-red-400" : "border-gray-200"
+                  }`}
                 />
+
                 {errors.value && (
                   <p className="mt-1 text-xs text-red-500">{errors.value}</p>
                 )}
               </div>
+
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-600">
                 <input
                   type="checkbox"
@@ -314,24 +344,29 @@ export function AdminRates({
                 />
                 Usar como tasa activa
               </label>
+
               <p className="text-xs leading-4 text-gray-400">
                 Se registrará la fecha y hora actual y tu usuario como
                 responsable.
               </p>
+
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={closeModal}
+                  disabled={saving}
                   className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
+
                 <button
                   type="button"
-                  onClick={save}
-                  className="flex-1 rounded-xl bg-[#C8102E] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#a90d26]"
+                  onClick={() => void save()}
+                  disabled={saving}
+                  className="flex-1 rounded-xl bg-[#C8102E] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#a90d26] disabled:opacity-60"
                 >
-                  Guardar
+                  {saving ? "Guardando..." : "Guardar"}
                 </button>
               </div>
             </div>
@@ -343,6 +378,7 @@ export function AdminRates({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="space-y-4 rounded-xl bg-white p-6 shadow-2xl">
             <p>¿Eliminar la tasa {toDelete.name}?</p>
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -351,9 +387,10 @@ export function AdminRates({
               >
                 Cancelar
               </button>
+
               <button
                 type="button"
-                onClick={remove}
+                onClick={() => void remove()}
                 className="rounded bg-red-600 px-4 py-2 text-white"
               >
                 Eliminar

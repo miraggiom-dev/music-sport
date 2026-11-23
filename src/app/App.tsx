@@ -82,7 +82,6 @@ import {
   initClients,
   initOrders,
   initProducts,
-  initRates,
   initUsers,
 } from "@/data/mockData";
 import { printDocument } from "@/lib/generatePDF";
@@ -809,8 +808,8 @@ function AdminTopBar({
 // ─── VENDOR ORDERS VIEW ───────────────────────────────────────────────────────
 
 export default function App() {
-  // Tabla TASA_CAMBIO (en memoria); la tasa activa se comparte por contexto
-  const [rates, setRates] = useState<ExchangeRate[]>(rateService.list());
+  const [rates, setRates] = useState<ExchangeRate[]>([]);
+
   return (
     <RateContext.Provider value={rates.find((r) => r.active) ?? null}>
       <AuthProvider>
@@ -852,6 +851,40 @@ function AppMain({
   const [clients, setClients] = useState<Client[]>([]);
   const [internalUsers, setInternalUsers] = useState<InternalUser[]>(initUsers);
   const activeRate = rates.find((r) => r.active) ?? null;
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    // No consultar tasas cuando no hay una sesión iniciada.
+    if (!role) {
+      setRates([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRates = async () => {
+      try {
+        const loadedRates = await rateService.getAll();
+
+        if (!cancelled) {
+          setRates(loadedRates);
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Error al cargar las tasas:", error);
+        notify.error("No se pudieron cargar las tasas de cambio.");
+      }
+    };
+
+    void loadRates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, role, setRates]);
+
   const [clock, setClock] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setClock(Date.now()), 60000);

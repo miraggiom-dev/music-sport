@@ -358,10 +358,23 @@ router.post("/", requireSession, (req, res) => {
       });
     }
 
-    if (currency === "VES" && !req.body.rate?.value) {
+    const activeRate = db
+      .prepare(
+        `
+        SELECT nombre, valor, fecha_actualizacion
+        FROM TASA_CAMBIO
+        WHERE activa = 1
+      `,
+      )
+      .get();
+
+    if (
+      currency === "VES" &&
+      (!activeRate || !Number.isFinite(Number(activeRate.valor)))
+    ) {
       return res.status(400).json({
         success: false,
-        message: "No hay una tasa de cambio válida para este pago.",
+        message: "No hay una tasa de cambio activa para este pago.",
       });
     }
 
@@ -413,9 +426,9 @@ router.post("/", requireSession, (req, res) => {
           taxType,
           total,
           currency,
-          req.body.rate?.name || null,
-          req.body.rate?.value || null,
-          req.body.rate?.updatedAt || null,
+          activeRate?.nombre || null,
+          activeRate?.valor || null,
+          activeRate?.fecha_actualizacion || null,
           String(billing.name || "").trim(),
           String(billing.docId || "")
             .trim()
