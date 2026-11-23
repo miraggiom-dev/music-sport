@@ -1,4 +1,4 @@
-# Music&Sport
+﻿# Music&Sport
 
 ## Sistema web de gestión de inventario y ventas
 
@@ -154,9 +154,6 @@ APP WEB/
 |   +-- demo-data.sql
 |   +-- seeds/
 |
-+-- data/
-|   +-- music-sport.db
-|
 +-- server/
 |   +-- index.js
 |   +-- sessionStore.js
@@ -185,11 +182,13 @@ APP WEB/
 +-- README.md
 ```
 
+La carpeta `data/` se genera localmente al iniciar el servidor. No se incluye en el repositorio porque contiene la base de datos de cada instalación.
+
 ## 5. Requisitos
 
 Para ejecutar el proyecto se necesita:
 
-- Windows 10 o superior (para utilizar el archivo INICIAR.bat).
+- Windows 10 o superior (para utilizar el archivo `INICIAR.bat`).
 - Node.js 22 o superior.
 - pnpm 12.8.1.
 - Git (opcional, para obtener el proyecto desde GitHub).
@@ -209,6 +208,38 @@ cd music-sport
 
 ```bash
 pnpm install
+```
+
+### Inicializar la base de datos
+
+La base de datos SQLite no se descarga desde GitHub, ya que los archivos de datos locales están excluidos mediante `.gitignore`.
+
+Al iniciar el servidor por primera vez, la aplicación crea automáticamente la carpeta `data/`, el archivo `music-sport.db`, la estructura de las tablas y el administrador inicial si todavía no existe.
+
+Para inicializarla manualmente:
+
+```bash
+pnpm server
+```
+
+Una vez que el servidor haya iniciado correctamente, se puede detener con `Ctrl + C`.
+
+### Cargar los datos de demostración
+
+El proyecto incluye el archivo `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
+
+Después de inicializar la base de datos por primera vez, ejecutar el siguiente comando desde la carpeta del proyecto:
+
+```bash
+node --input-type=module -e "import Database from 'better-sqlite3'; import { readFileSync } from 'node:fs'; const db = new Database('./data/music-sport.db'); try { db.pragma('foreign_keys = ON'); db.exec(readFileSync('./database/demo-data.sql', 'utf8').replace(/^\uFEFF/, '')); console.log('Datos de demostración cargados correctamente.'); } finally { db.close(); }"
+```
+
+Este procedimiento se realiza una sola vez por cada base de datos nueva. No debe ejecutarse nuevamente sobre una base que ya contenga los registros de demostración.
+
+Las cuentas de demostración utilizan la contraseña:
+
+```text
+Demo123!
 ```
 
 ### Iniciar la aplicación en Windows
@@ -282,9 +313,9 @@ Las cuentas de demostración creadas con esos datos utilizan:
 Contraseña: Demo123!
 ```
 
-La base de datos utilizada por la instalación local se encuentra en `data/music-sport.db`.
+La base de datos utilizada por cada instalación local se encuentra en `data/music-sport.db`.
 
-No se debe ejecutar nuevamente el archivo de demostración sobre una base que ya contenga esos registros, porque podría duplicar información.
+Los archivos de bases de datos están excluidos del repositorio mediante `.gitignore`. De esta manera, cada instalación mantiene sus propios datos locales, mientras que el esquema y los registros de demostración permanecen disponibles en el código fuente.
 
 ## 9. Seguridad
 

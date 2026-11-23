@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 guidelines/
 
@@ -13,5 +13,8 @@ guidelines/
 .DS_Store
 Thumbs.db
 
+# Base de datos local y archivos auxiliares de SQLite
 /data/
 *.db
+*.db-wal
+*.db-shm
