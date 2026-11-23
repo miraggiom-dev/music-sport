@@ -1,16 +1,13 @@
-
 import bcrypt from "bcryptjs";
 
-// Validar el entorno antes de abrir cualquier base de datos.
+// Este procedimiento solo debe ejecutarse expresamente en producción.
 if (process.env.NODE_ENV !== "production") {
-  throw new Error(
-    "Este procedimiento solo puede ejecutarse en producción.",
-  );
+  throw new Error("Este procedimiento solo puede ejecutarse en producción.");
 }
 
 if (!process.env.DATA_DIRECTORY) {
   throw new Error(
-    "Debes configurar DATA_DIRECTORY con la ruta del almacenamiento persistente.",
+    "Debes configurar DATA_DIRECTORY con la ruta del almacenamiento.",
   );
 }
 
@@ -39,34 +36,51 @@ if (password.length < 12) {
 const { default: db } = await import("./connection.js");
 
 try {
-  const existingUsers = db
-    .prepare("SELECT COUNT(*) AS total FROM USUARIO")
-    .get();
+  const admin = db
+    .prepare(
+      `
+    SELECT id_usuario
+    FROM USUARIO
+    WHERE correo = ? AND rol = 'admin'
+  `,
+    )
+    .get("admin@musicsport.com");
 
-  if (existingUsers.total > 0) {
-    throw new Error(
-      "La base de datos ya contiene usuarios. No se creará otro administrador.",
-    );
+  if (!admin) {
+    throw new Error("No se encontró el administrador inicial de Music&Sport.");
+  }
+
+  const emailInUse = db
+    .prepare(
+      `
+    SELECT id_usuario
+    FROM USUARIO
+    WHERE correo = ? AND id_usuario <> ?
+  `,
+    )
+    .get(email, admin.id_usuario);
+
+  if (emailInUse) {
+    throw new Error("El correo indicado ya está registrado por otro usuario.");
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  db.prepare(`
-    INSERT INTO USUARIO (
-      nombre,
-      correo,
-      telefono,
-      contrasena,
-      rol,
-      estado
-    )
-    VALUES (?, ?, ?, ?, 'admin', 'activo')
-  `).run(name, email, phone, passwordHash);
+  db.prepare(
+    `
+    UPDATE USUARIO
+    SET nombre = ?,
+        correo = ?,
+        telefono = ?,
+        contrasena = ?
+    WHERE id_usuario = ?
+  `,
+  ).run(name, email, phone, passwordHash, admin.id_usuario);
 
-  console.log("Administrador inicial creado correctamente.");
+  console.log("Administrador actualizado correctamente.");
   console.log(`Correo: ${email}`);
 } catch (error) {
-  console.error("No se pudo crear el administrador:", error.message);
+  console.error("No se pudo actualizar el administrador:", error.message);
   process.exitCode = 1;
 } finally {
   db.close();

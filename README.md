@@ -9,6 +9,7 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 ## 1. Funcionalidades
 
 ### Administrador
+
 - Panel de control con indicadores del negocio.
 - Gestión de usuarios y vendedores.
 - Gestión de clientes.
@@ -19,6 +20,7 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Administración de tasas de cambio.
 
 ### Vendedor
+
 - Panel de operaciones.
 - Consulta y gestión de órdenes asignadas.
 - Revisión y procesamiento de pagos.
@@ -26,6 +28,7 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Consulta del inventario.
 
 ### Cliente
+
 - Catálogo de productos.
 - Búsqueda y filtrado por categorías.
 - Consulta del detalle de productos.
@@ -36,6 +39,7 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Footer responsive con navegación de compra, ayuda, empresa y enlaces legales.
 
 ### Funcionalidades generales
+
 - Autenticación mediante correo y contraseña.
 - Control de acceso según el rol.
 - Gestión de sesiones.
@@ -46,6 +50,7 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 ## 2. Tecnologías utilizadas
 
 ### Frontend
+
 - React 18
 - TypeScript
 - Vite
@@ -56,16 +61,19 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Sonner
 
 ### Backend
+
 - Node.js
 - Express 5
 - express-session
 - bcryptjs
 
 ### Base de datos
+
 - SQLite
 - better-sqlite3
 
 ### Desarrollo y pruebas
+
 - pnpm
 - Vitest
 - TypeScript
@@ -118,15 +126,15 @@ Express administra las solicitudes del cliente y expone las rutas de la API bajo
 
 Las rutas principales son:
 
-| Ruta | Función |
-|---|---|
-| `/api/auth` | Autenticación y sesiones |
-| `/api/users` | Usuarios |
-| `/api/clients` | Clientes |
-| `/api/products` | Productos |
-| `/api/orders` | Órdenes |
-| `/api/rates` | Tasas de cambio |
-| `/api/status` | Estado del servidor |
+| Ruta             | Función                    |
+| ---------------- | -------------------------- |
+| `/api/auth`      | Autenticación y sesiones   |
+| `/api/users`     | Usuarios                   |
+| `/api/clients`   | Clientes                   |
+| `/api/products`  | Productos                  |
+| `/api/orders`    | Órdenes                    |
+| `/api/rates`     | Tasas de cambio            |
+| `/api/status`    | Estado del servidor        |
 | `/api/db-status` | Estado de la base de datos |
 
 ### Base de datos
@@ -188,6 +196,7 @@ APP WEB/
 |       +-- colchoneta.webp
 |       +-- raqueta.webp
 |       +-- baquetas.webp
+|
 +-- package.json
 +-- pnpm-lock.yaml
 +-- INICIAR.bat
@@ -198,20 +207,13 @@ La carpeta `data/` se genera localmente al iniciar el servidor. No se incluye en
 
 ### Imágenes de los productos
 
-Los diez productos de demostración utilizan imágenes WebP locales almacenadas
-en `public/product-images/`. Las rutas se asocian en `database/demo-data.sql`
-y `database/connection.js`.
+Los diez productos de demostración utilizan imágenes WebP locales almacenadas en `public/product-images/`. Las rutas se asocian en los datos de demostración.
 
-Las imágenes locales permiten que el catálogo, el carrito y el detalle de
-productos funcionen sin depender de servicios externos. Una imagen personalizada
-que ya haya sido cargada en la administración no se reemplaza automáticamente.
+Las imágenes locales permiten que el catálogo, el carrito y el detalle de productos funcionen sin depender de servicios externos. Una imagen personalizada que ya haya sido cargada en la administración no se reemplaza automáticamente.
 
 ### Footer
 
-El footer del catálogo sigue la identidad visual de Music&Sport y presenta
-secciones responsive para compra, ayuda, empresa y enlaces legales. Los títulos
-de sección utilizan un tamaño mayor y los enlaces y textos secundarios mantienen
-una medida uniforme.
+El footer del catálogo sigue la identidad visual de Music&Sport y presenta secciones responsive para compra, ayuda, empresa y enlaces legales. Los títulos de sección utilizan un tamaño mayor y los enlaces y textos secundarios mantienen una medida uniforme.
 
 ## 5. Requisitos
 
@@ -235,34 +237,29 @@ cd music-sport
 
 ### Instalar dependencias
 
-No es necesario ejecutarlo manualmente. `INICIAR.bat` habilita pnpm y ejecuta
-`pnpm install` automáticamente la primera vez.
+No es necesario ejecutar la instalación manualmente. El archivo `INICIAR.bat` comprueba las dependencias e instala los paquetes del proyecto cuando es necesario.
 
 ### Inicializar la base de datos
 
-La base de datos SQLite no se descarga desde GitHub, ya que los archivos de datos locales están excluidos mediante `.gitignore`.
+No se requiere ningún comando manual para inicializar SQLite.
 
-Al iniciar el servidor por primera vez, la aplicación crea automáticamente la carpeta `data/`, el archivo `music-sport.db`, la estructura de las tablas y el administrador inicial si todavía no existe.
+Al iniciar el servidor por primera vez, la aplicación crea automáticamente:
 
-Para inicializarla manualmente:
+- La carpeta `data/`.
+- El archivo `music-sport.db`.
+- La estructura de las tablas.
+- El administrador inicial, si todavía no existe.
+- Los datos de demostración, cuando corresponde.
 
-```bash
-pnpm server
-```
+La inicialización de los datos de demostración se controla mediante un registro interno para evitar que se carguen repetidamente.
 
-Una vez que el servidor haya iniciado correctamente, se puede detener con `Ctrl + C`.
+Si la base de datos ya contiene información, esta se conserva y no se vuelve a ejecutar la carga de demostración.
 
-### Cargar los datos de demostración
+### Datos de demostración
 
 El proyecto incluye el archivo `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
 
-En una base de datos nueva, `database/connection.js` carga los datos
-automáticamente después de crear el esquema y el administrador. El registro
-interno `INICIALIZACION/demo-data` impide repetir la carga. Una instalación
-que ya contiene datos conserva su información y marca la inicialización como
-omitida sin modificar los registros existentes.
-
-Las cuentas de demostración utilizan la contraseña:
+En una base de datos nueva, los datos se cargan automáticamente durante la inicialización. Las cuentas de demostración utilizan la contraseña:
 
 ```text
 Demo123!
@@ -270,7 +267,7 @@ Demo123!
 
 ### Iniciar la aplicación en Windows
 
-Ejecutar:
+Ejecutar el archivo:
 
 ```text
 INICIAR.bat
@@ -279,13 +276,15 @@ INICIAR.bat
 El archivo realiza las siguientes operaciones:
 
 1. Accede a la carpeta del proyecto.
-2. Comprueba Node.js.
-3. Prepara pnpm y las dependencias cuando sean necesarias.
-4. Compila el frontend.
-5. Inicializa SQLite y carga los datos de demostración solamente si corresponde.
-6. Genera o reutiliza un secreto persistente para las sesiones.
-7. Inicia el servidor Express en producción local.
-8. Abre el navegador en la dirección local.
+2. Comprueba que Node.js esté instalado.
+3. Comprueba la disponibilidad de pnpm.
+4. Instala las dependencias cuando sea necesario.
+5. Compila el frontend.
+6. Inicializa SQLite y carga los datos de demostración solamente cuando corresponde.
+7. Genera o reutiliza un secreto persistente para las sesiones.
+8. Inicia el servidor Express con el frontend compilado.
+9. Comprueba que el servidor responda correctamente.
+10. Abre el navegador cuando la aplicación está disponible.
 
 La aplicación estará disponible en:
 
@@ -293,31 +292,38 @@ La aplicación estará disponible en:
 http://localhost:3000
 ```
 
-### Inicio manual
+Para cerrar la aplicación, se puede cerrar la ventana del servidor que se abre junto con el navegador.
 
-También es posible compilar e iniciar el sistema manualmente:
+### Inicio manual para desarrollo
+
+El inicio habitual para la presentación en Windows es mediante `INICIAR.bat`.
+
+Si se necesita trabajar manualmente durante el desarrollo, se pueden utilizar:
 
 ```bash
+pnpm install
 pnpm build
 pnpm server
 ```
 
-Para trabajar únicamente con el servidor de desarrollo del frontend:
+Para iniciar únicamente el servidor de desarrollo de Vite:
 
 ```bash
 pnpm dev
 ```
 
+Estos comandos son opcionales y no son necesarios para la instalación normal.
+
 ## 7. Comandos disponibles
 
-| Comando | Descripción |
-|---|---|
-| `pnpm install` | Instala las dependencias |
-| `pnpm dev` | Inicia Vite en modo desarrollo |
-| `pnpm build` | Compila el frontend |
-| `pnpm server` | Inicia el servidor Express |
-| `pnpm start` | Inicia el servidor Express |
-| `pnpm test` | Ejecuta las pruebas automatizadas |
+| Comando                  | Descripción                       |
+| ------------------------ | --------------------------------- |
+| `pnpm install`           | Instala las dependencias          |
+| `pnpm dev`               | Inicia Vite en modo desarrollo    |
+| `pnpm build`             | Compila el frontend               |
+| `pnpm server`            | Inicia el servidor Express        |
+| `pnpm start`             | Inicia el servidor Express        |
+| `pnpm test`              | Ejecuta las pruebas automatizadas |
 | `pnpm exec tsc --noEmit` | Comprueba los tipos de TypeScript |
 
 ## 8. Base de datos y usuarios
@@ -357,14 +363,19 @@ El sistema incorpora:
 - Cookies HTTP-only.
 - Control de acceso según roles.
 - Claves foráneas activadas en SQLite.
+- Secreto de sesión persistente para las ejecuciones locales.
 
-Para producción se deben configurar las variables de entorno correspondientes, especialmente:
+El archivo `INICIAR.bat` ejecuta la versión compilada del sistema en modo de producción local. Esto no significa que la aplicación esté preparada para exponerse directamente a Internet.
 
-- `NODE_ENV`
-- `SESSION_SECRET`
-- `DATA_DIRECTORY`
+Antes de realizar un despliegue público se deben configurar adecuadamente:
 
-El secreto de sesión debe tener al menos 32 caracteres en producción. Las credenciales iniciales y los secretos de desarrollo no deben utilizarse en un despliegue real.
+- Credenciales administrativas propias y seguras.
+- HTTPS.
+- Cookies seguras.
+- Un `SESSION_SECRET` privado de al menos 32 caracteres.
+- Almacenamiento persistente y protegido para la base de datos.
+
+Las credenciales de demostración son exclusivamente para la presentación local y no deben utilizarse en un despliegue público.
 
 ## 10. Pruebas y calidad
 
@@ -384,7 +395,7 @@ GitHub:
 
 https://github.com/miraggiom-dev/music-sport
 
-Rama principal de trabajo:
+Rama de trabajo:
 
 ```text
 develop
