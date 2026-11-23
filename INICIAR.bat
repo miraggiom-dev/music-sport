@@ -27,17 +27,13 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/5] Comprobando dependencias...
+echo [3/5] Instalando y verificando dependencias...
+call corepack pnpm install --frozen-lockfile
 
-if not exist "node_modules\.pnpm\lock.yaml" (
-    echo Instalando dependencias...
-    call corepack pnpm install --frozen-lockfile
-
-    if errorlevel 1 (
-        echo ERROR al instalar las dependencias.
-        pause
-        exit /b 1
-    )
+if errorlevel 1 (
+    echo ERROR al instalar las dependencias.
+    pause
+    exit /b 1
 )
 
 echo.
@@ -53,7 +49,10 @@ if errorlevel 1 (
 echo.
 echo [5/5] Iniciando servidor local...
 
-start "MusicSport-Servidor" cmd /k "cd /d ""%~dp0"" && set NODE_ENV=production && set RECOVERY_MODE=simulated && node server/index.js"
+set "NODE_ENV=production"
+set "RECOVERY_MODE=simulated"
+
+start "MusicSport-Servidor" /D "%~dp0" cmd /k "node server/index.js"
 
 echo.
 echo Esperando respuesta del servidor...
