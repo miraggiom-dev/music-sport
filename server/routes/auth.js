@@ -1,5 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import { createHash, randomInt } from "node:crypto";
 import db from "../../database/connection.js";
 
 const router = Router();
@@ -281,6 +282,246 @@ router.post("/register", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "No se pudo crear la cuenta.",
+    });
+  }
+});
+
+// Solicitar recuperación de contraseña (modo simulado).
+router.post("/forgot-password", (req, res) => {
+  try {
+    if (process.env.RECOVERY_MODE !== "simulated") {
+      return res.status(503).json({
+        success: false,
+        message: "La recuperación simulada no está habilitada.",
+      });
+    }
+
+    const { email } = req.body || {};
+
+    if (typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Debes introducir un correo electrónico.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = db
+      .prepare(
+        `
+        SELECT id_usuario, correo
+        FROM USUARIO
+        WHERE correo = ?
+      `,
+      )
+      .get(normalizedEmail);
+
+    // La respuesta es la misma exista o no la cuenta.
+    const genericResponse = {
+      success: true,
+      message:
+        "Si el correo está registrado, se generó un código de recuperación. Consulta la consola del servidor.",
+    };
+
+    if (!user) {
+      return res.json(genericResponse);
+    }
+
+    // Código numérico aleatorio de 8 dígitos.
+    const recoveryCode = String(randomInt(10000000, 100000000));
+
+    // En la base de datos solo se almacena el hash del código.
+    const tokenHash = createHash("sha256").update(recoveryCode).digest("hex");
+
+    const expiration = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    const createRecoveryToken = db.transaction(() => {
+      // Invalidar códigos anteriores del mismo usuario.
+      db.prepare(
+        `
+        UPDATE TOKEN_RECUPERACION
+        SET usado = 1
+        WHERE id_usuario = ? AND usado = 0
+      `,
+      ).run(user.id_usuario);
+
+      db.prepare(
+        `
+        INSERT INTO TOKEN_RECUPERACION (
+          id_usuario,
+          token_hash,
+          fecha_expiracion,
+          usado
+        )
+        VALUES (?, ?, ?, 0)
+      `,
+      ).run(user.id_usuario, tokenHash, expiration);
+    });
+
+    createRecoveryToken();
+
+    // El código solo se muestra en la consola local del servidor.
+    console.log("\n========================================");
+    console.log("   MUSIC&SPORT - RECUPERACIÓN SIMULADA");
+    console.log("========================================");
+    console.log(`Correo: ${user.correo}`);
+    console.log(`Código de recuperación: ${recoveryCode}`);
+    console.log("Vigencia: 15 minutos");
+    console.log("========================================\n");
+
+    return res.json(genericResponse);
+  } catch (error) {
+    console.error("Error solicitando recuperación:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "No se pudo procesar la solicitud de recuperación.",
+    });
+  }
+});
+
+// Restablecer contraseña mediante código de recuperación.
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body || {};
+
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (
+      !normalizedEmail ||
+      typeof code !== "string" ||
+      !/^\d{8}$/.test(code) ||
+      typeof newPassword !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Los datos de recuperación no son válidos.",
+      });
+    }
+
+    if (newPassword.length < 6 || newPassword.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: "La contraseña debe tener entre 6 y 50 caracteres.",
+      });
+    }
+
+    const user = db
+      .prepare(
+        `
+        SELECT id_usuario
+        FROM USUARIO
+        WHERE correo = ?
+      `,
+      )
+      .get(normalizedEmail);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "El código es inválido, ha vencido o ya fue utilizado.",
+      });
+    }
+
+    const tokenHash = createHash("sha256").update(code).digest("hex");
+
+    const recoveryToken = db
+      .prepare(
+        `
+        SELECT id_token, fecha_expiracion
+        FROM TOKEN_RECUPERACION
+        WHERE id_usuario = ?
+          AND token_hash = ?
+          AND usado = 0
+      `,
+      )
+      .get(user.id_usuario, tokenHash);
+
+    if (
+      !recoveryToken ||
+      Date.now() > Date.parse(recoveryToken.fecha_expiracion)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "El código es inválido, ha vencido o ya fue utilizado.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    const resetPassword = db.transaction(() => {
+      // Verificar nuevamente que el código siga disponible.
+      const currentToken = db
+        .prepare(
+          `
+          SELECT id_token
+          FROM TOKEN_RECUPERACION
+          WHERE id_token = ?
+            AND id_usuario = ?
+            AND token_hash = ?
+            AND usado = 0
+            AND fecha_expiracion > ?
+        `,
+        )
+        .get(
+          recoveryToken.id_token,
+          user.id_usuario,
+          tokenHash,
+          new Date().toISOString(),
+        );
+
+      if (!currentToken) {
+        return false;
+      }
+
+      db.prepare(
+        `
+        UPDATE USUARIO
+        SET contrasena = ?
+        WHERE id_usuario = ?
+      `,
+      ).run(passwordHash, user.id_usuario);
+
+      // Marcar el código utilizado.
+      db.prepare(
+        `
+        UPDATE TOKEN_RECUPERACION
+        SET usado = 1
+        WHERE id_token = ?
+      `,
+      ).run(recoveryToken.id_token);
+
+      // Invalidar cualquier otro código pendiente del usuario.
+      db.prepare(
+        `
+        UPDATE TOKEN_RECUPERACION
+        SET usado = 1
+        WHERE id_usuario = ? AND usado = 0
+      `,
+      ).run(user.id_usuario);
+
+      return true;
+    });
+
+    if (!resetPassword()) {
+      return res.status(400).json({
+        success: false,
+        message: "El código es inválido, ha vencido o ya fue utilizado.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "La contraseña se actualizó correctamente.",
+    });
+  } catch (error) {
+    console.error("Error restableciendo contraseña:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "No se pudo restablecer la contraseña.",
     });
   }
 });

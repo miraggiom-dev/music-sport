@@ -43,6 +43,8 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Autenticación mediante correo y contraseña.
 - Control de acceso según el rol.
 - Gestión de sesiones.
+- Recuperación de contraseña mediante códigos de verificación.
+- Restablecimiento de contraseña con validación de código y tiempo de expiración.
 - Conversión referencial de precios entre dólares y bolívares.
 - Gestión de tasas de cambio.
 - Generación e impresión de recibos y documentos.
@@ -126,16 +128,18 @@ Express administra las solicitudes del cliente y expone las rutas de la API bajo
 
 Las rutas principales son:
 
-| Ruta             | Función                    |
-| ---------------- | -------------------------- |
-| `/api/auth`      | Autenticación y sesiones   |
-| `/api/users`     | Usuarios                   |
-| `/api/clients`   | Clientes                   |
-| `/api/products`  | Productos                  |
-| `/api/orders`    | Órdenes                    |
-| `/api/rates`     | Tasas de cambio            |
-| `/api/status`    | Estado del servidor        |
-| `/api/db-status` | Estado de la base de datos |
+| Ruta                        | Función                                                |
+| --------------------------- | ------------------------------------------------------ |
+| `/api/auth`                 | Autenticación y sesiones                               |
+| `/api/auth/forgot-password` | Solicitud de recuperación de contraseña                |
+| `/api/auth/reset-password`  | Validación del código y restablecimiento de contraseña |
+| `/api/users`                | Usuarios                                               |
+| `/api/clients`              | Clientes                                               |
+| `/api/products`             | Productos                                              |
+| `/api/orders`               | Órdenes                                                |
+| `/api/rates`                | Tasas de cambio                                        |
+| `/api/status`               | Estado del servidor                                    |
+| `/api/db-status`            | Estado de la base de datos                             |
 
 ### Base de datos
 
@@ -365,6 +369,35 @@ El sistema incorpora:
 - Claves foráneas activadas en SQLite.
 - Secreto de sesión persistente para las ejecuciones locales.
 
+### Recuperación de contraseña
+
+El sistema incorpora un mecanismo de recuperación de contraseña mediante códigos de verificación de un solo uso.
+
+El proceso funciona de la siguiente manera:
+
+1. El usuario solicita recuperar su contraseña desde la pantalla de inicio de sesión.
+2. Introduce el correo electrónico asociado a su cuenta.
+3. El servidor genera un código numérico de ocho dígitos.
+4. El código tiene una vigencia de 15 minutos.
+5. El código se almacena mediante un hash SHA-256, evitando guardar el código original en la base de datos.
+6. El usuario introduce el código y establece una contraseña nueva.
+7. El servidor valida el código y actualiza la contraseña utilizando bcryptjs.
+8. Una vez utilizado, el código queda invalidado y no puede reutilizarse.
+
+#### Modo simulado
+
+La recuperación utiliza el modo `simulated`, habilitado mediante la variable de entorno:
+
+```env
+RECOVERY_MODE=simulated
+```
+
+En este modo, el código de recuperación se muestra en la consola del servidor para realizar pruebas y demostraciones locales.
+
+Este mecanismo no envía correos electrónicos. Para un despliegue público deberá integrarse un servicio de envío de correo electrónico y configurarse un mecanismo de recuperación apropiado para producción.
+
+### Consideraciones para despliegue
+
 El archivo `INICIAR.bat` ejecuta la versión compilada del sistema en modo de producción local. Esto no significa que la aplicación esté preparada para exponerse directamente a Internet.
 
 Antes de realizar un despliegue público se deben configurar adecuadamente:
@@ -374,6 +407,7 @@ Antes de realizar un despliegue público se deben configurar adecuadamente:
 - Cookies seguras.
 - Un `SESSION_SECRET` privado de al menos 32 caracteres.
 - Almacenamiento persistente y protegido para la base de datos.
+- Un servicio de correo electrónico para la recuperación de contraseñas.
 
 Las credenciales de demostración son exclusivamente para la presentación local y no deben utilizarse en un despliegue público.
 
