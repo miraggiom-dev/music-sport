@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import type { Client, View } from "@/types";
 import {
@@ -16,11 +15,9 @@ import { authService } from "@/services/authService";
 
 export function RegisterView({
   setView,
-  emailTaken,
   onRegister,
 }: {
   setView: (v: View) => void;
-  emailTaken: (email: string) => boolean;
   onRegister: (c: Client) => void;
 }) {
   const [form, setForm] = useState({
@@ -53,8 +50,6 @@ export function RegisterView({
 
     if (!isValidEmail(email)) {
       e.email = "Correo electrónico inválido";
-    } else if (emailTaken(email)) {
-      e.email = "Correo ya registrado";
     }
 
     if (form.phone && !isValidPhone(form.phone)) {
@@ -109,13 +104,13 @@ export function RegisterView({
       // La sesión ya fue creada por el backend.
       // App recibe el cliente y lo dirige a su área.
       onRegister(newClient);
-
     } catch (error) {
       setErrors((previous) => ({
         ...previous,
-        server: error instanceof Error
-          ? error.message
-          : "No se pudo crear la cuenta. Inténtalo nuevamente.",
+        server:
+          error instanceof Error
+            ? error.message
+            : "No se pudo crear la cuenta. Inténtalo nuevamente.",
       }));
     } finally {
       setSubmitting(false);
@@ -141,50 +136,49 @@ export function RegisterView({
 
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {([
-            {
-              label: "Nombre completo *",
-              key: "name",
-              type: "text",
-              wide: true,
-            },
-            {
-              label: "Cédula / RIF",
-              key: "docId",
-              type: "text",
-            },
-            {
-              label: "Teléfono",
-              key: "phone",
-              type: "tel",
-            },
-            {
-              label: "Correo electrónico *",
-              key: "email",
-              type: "email",
-              wide: true,
-            },
-            {
-              label: "Dirección",
-              key: "address",
-              type: "text",
-              wide: true,
-            },
-            {
-              label: "Contraseña *",
-              key: "password",
-              type: "password",
-            },
-            {
-              label: "Confirmar *",
-              key: "confirm",
-              type: "password",
-            },
-          ] as const).map((f) => (
-            <div
-              key={f.key}
-              className={"wide" in f ? "sm:col-span-2" : ""}
-            >
+          {(
+            [
+              {
+                label: "Nombre completo *",
+                key: "name",
+                type: "text",
+                wide: true,
+              },
+              {
+                label: "Cédula / RIF",
+                key: "docId",
+                type: "text",
+              },
+              {
+                label: "Teléfono",
+                key: "phone",
+                type: "tel",
+              },
+              {
+                label: "Correo electrónico *",
+                key: "email",
+                type: "email",
+                wide: true,
+              },
+              {
+                label: "Dirección",
+                key: "address",
+                type: "text",
+                wide: true,
+              },
+              {
+                label: "Contraseña *",
+                key: "password",
+                type: "password",
+              },
+              {
+                label: "Confirmar *",
+                key: "confirm",
+                type: "password",
+              },
+            ] as const
+          ).map((f) => (
+            <div key={f.key} className={"wide" in f ? "sm:col-span-2" : ""}>
               <label className="block text-xs font-semibold text-gray-600 mb-1">
                 {f.label}
               </label>
@@ -221,9 +215,7 @@ export function RegisterView({
         </div>
 
         {errors.server && (
-          <p className="text-red-500 text-xs">
-            {errors.server}
-          </p>
+          <p className="text-red-500 text-xs">{errors.server}</p>
         )}
 
         <div className="flex items-start gap-2">
@@ -241,9 +233,7 @@ export function RegisterView({
         </div>
 
         {errors.terms && (
-          <p className="text-red-500 text-[11px]">
-            {errors.terms}
-          </p>
+          <p className="text-red-500 text-[11px]">{errors.terms}</p>
         )}
 
         <button

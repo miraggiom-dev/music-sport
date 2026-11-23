@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -7,16 +6,8 @@ import {
   Mail,
   Lock,
 } from "lucide-react";
-import type {
-  Account,
-  Lockout,
-  View,
-} from "@/types";
-import {
-  isValidEmail,
-  Logo,
-  Input,
-} from "@/components/shared";
+import type { Account, Lockout, View } from "@/types";
+import { isValidEmail, Logo, Input } from "@/components/shared";
 import { AuthShell } from "./AuthShell";
 import { authService } from "@/services/authService";
 
@@ -25,27 +16,20 @@ const LOCK_MINUTES = 5;
 
 export function LoginView({
   setView,
-  findAccount,
   onLogin,
   lockouts,
   setLockouts,
-  resetPassword,
   notice,
 }: {
   setView: (v: View) => void;
-  findAccount: (email: string) => Account | null;
   onLogin: (a: Account) => void;
   lockouts: Record<string, Lockout>;
   setLockouts: React.Dispatch<React.SetStateAction<Record<string, Lockout>>>;
-  resetPassword: (a: Account, pass: string) => void;
   notice: string;
 }) {
-  void findAccount;
-  void resetPassword;
-
-  const [mode, setMode] = useState<
-    "login" | "recover-email" | "recover-done"
-  >("login");
+  const [mode, setMode] = useState<"login" | "recover-email" | "recover-done">(
+    "login",
+  );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,9 +42,7 @@ export function LoginView({
   const lock = lockouts[key];
 
   const lockedFor =
-    lock && lock.until > now
-      ? Math.ceil((lock.until - now) / 1000)
-      : 0;
+    lock && lock.until > now ? Math.ceil((lock.until - now) / 1000) : 0;
 
   useEffect(() => {
     if (!lockedFor) return;
@@ -100,9 +82,7 @@ export function LoginView({
 
       if (user.role === "client") {
         if (!user.clientId) {
-          throw new Error(
-            "La cuenta no tiene un perfil de cliente válido.",
-          );
+          throw new Error("La cuenta no tiene un perfil de cliente válido.");
         }
 
         account = {
@@ -127,9 +107,7 @@ export function LoginView({
             email: user.email,
             phone: user.phone,
             role: user.role as "admin" | "vendor",
-            status: user.status === "inactivo"
-              ? "inactivo"
-              : "activo",
+            status: user.status === "inactivo" ? "inactivo" : "activo",
             createdAt: user.createdAt,
             password: "",
           },
@@ -143,12 +121,11 @@ export function LoginView({
       });
 
       onLogin(account);
-
     } catch (err) {
       const attempts =
         (lock && lock.until <= Date.now() && lock.until > 0
           ? 0
-          : lock?.attempts ?? 0) + 1;
+          : (lock?.attempts ?? 0)) + 1;
 
       if (attempts >= LOCK_ATTEMPTS) {
         setLockouts((l) => ({
@@ -230,18 +207,11 @@ export function LoginView({
         />
       </div>
 
-      {errors[k] && (
-        <p className="text-red-500 text-xs mt-1">
-          {errors[k]}
-        </p>
-      )}
+      {errors[k] && <p className="text-red-500 text-xs mt-1">{errors[k]}</p>}
     </div>
   );
 
-  const banner = (
-    tone: "red" | "amber" | "green",
-    text: string,
-  ) => (
+  const banner = (tone: "red" | "amber" | "green", text: string) => (
     <div
       className={`rounded-xl px-4 py-3 mb-4 flex items-start gap-2 text-xs border ${
         tone === "red"
@@ -274,9 +244,7 @@ export function LoginView({
         {t}
       </h2>
 
-      <p className="text-center text-gray-400 text-sm mb-6">
-        {sub}
-      </p>
+      <p className="text-center text-gray-400 text-sm mb-6">{sub}</p>
     </>
   );
 
@@ -327,16 +295,10 @@ export function LoginView({
 
   return (
     <AuthShell>
-      {title(
-        "Iniciar sesión",
-        "Ingresa tus credenciales para continuar",
-      )}
+      {title("Iniciar sesión", "Ingresa tus credenciales para continuar")}
 
       {mode === "recover-done" &&
-        banner(
-          "green",
-          "Contraseña actualizada. Ya puedes iniciar sesión.",
-        )}
+        banner("green", "Contraseña actualizada. Ya puedes iniciar sesión.")}
 
       {notice && !error && banner("amber", notice)}
 

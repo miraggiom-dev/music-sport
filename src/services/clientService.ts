@@ -1,4 +1,3 @@
-
 import type { Client } from "@/types";
 
 const API_URL = "/api/clients";
@@ -8,6 +7,16 @@ interface ClientResponse {
   message?: string;
   clients?: Client[];
   client?: Client;
+}
+
+interface ClientProfileUpdate {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  docId: string;
+  currentPassword?: string;
+  newPassword?: string;
 }
 
 async function request(
@@ -58,6 +67,7 @@ export const clientService = {
     return data.client;
   },
 
+  // Actualizar un cliente desde administración.
   async update(
     id: string,
     client: {
@@ -75,6 +85,20 @@ export const clientService = {
 
     if (!data.client) {
       throw new Error("El servidor no devolvió el cliente actualizado.");
+    }
+
+    return data.client;
+  },
+
+  // Actualizar el perfil del cliente autenticado.
+  async updateProfile(profile: ClientProfileUpdate): Promise<Client> {
+    const data = await request(`${API_URL}/me`, {
+      method: "PUT",
+      body: JSON.stringify(profile),
+    });
+
+    if (!data.client) {
+      throw new Error("El servidor no devolvió el perfil actualizado.");
     }
 
     return data.client;

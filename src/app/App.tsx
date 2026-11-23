@@ -78,12 +78,6 @@ import type {
   TaxType,
   View,
 } from "@/types";
-import {
-  initClients,
-  initOrders,
-  initProducts,
-  initUsers,
-} from "@/data/mockData";
 import { printDocument } from "@/lib/generatePDF";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RateContext } from "@/contexts/RateContext";
@@ -157,6 +151,7 @@ import { StatusBadge, Logo, Input, StatCard } from "@/components/shared";
 const LoginView = lazy(() => import("./auth/login/Lazy"));
 const RegisterView = lazy(() => import("./auth/LazyRegister"));
 import { round2, fmt, fmtBs } from "@/lib/formatCurrency";
+import { userService } from "@/services/userService";
 
 function PageLoading() {
   return (
@@ -842,14 +837,65 @@ function AppMain({
     setNotice,
     authLoading,
   } = useAuth();
-  const [products, setProducts] = useState<Product[]>(() =>
-    getValidProducts(productService.list()),
-  );
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    let cancelled = false;
+
+    const loadProducts = async () => {
+      try {
+        const loadedProducts = await productService.getAll();
+
+        if (!cancelled) {
+          setProducts(getValidProducts(loadedProducts));
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Error al cargar los productos:", error);
+        setProducts([]);
+        notify.error(
+          "No se pudieron cargar los productos desde la base de datos.",
+        );
+      }
+    };
+
+    void loadProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading]);
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCarts, setSavedCarts] = useState<Record<string, CartItem[]>>({});
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [internalUsers, setInternalUsers] = useState<InternalUser[]>(initUsers);
+  useEffect(() => {
+    if (authLoading || role !== "admin") return;
+
+    clientService
+      .getAll()
+      .then(setClients)
+      .catch((error: unknown) => {
+        console.error("Error al cargar clientes:", error);
+        notify.error("No se pudieron cargar los clientes.");
+      });
+  }, [authLoading, role]);
+  const [internalUsers, setInternalUsers] = useState<InternalUser[]>([]);
+  useEffect(() => {
+    if (authLoading || role !== "admin") return;
+
+    userService
+      .getAll()
+      .then(setInternalUsers)
+      .catch((error: unknown) => {
+        console.error("Error al cargar usuarios:", error);
+        notify.error("No se pudieron cargar los usuarios.");
+      });
+  }, [authLoading, role]);
   const activeRate = rates.find((r) => r.active) ?? null;
 
   useEffect(() => {
@@ -1128,8 +1174,6 @@ function AppMain({
   }
   logoutRef.current = logout;
 
-  const findAccount = (email: string): Account | null =>
-    authService.findAccount(email, internalUsers, clients);
   const onLogin = (acc: Account) => {
     setNotice("");
     if (acc.kind === "staff") {
@@ -1180,17 +1224,6 @@ function AppMain({
       notify.success(`Bienvenido(a), ${acc.user.name.split(" ")[0]}`);
     }
   };
-  const resetPassword = (acc: Account, password: string) => {
-    if (acc.kind === "staff")
-      setInternalUsers((us) =>
-        us.map((u) => (u.id === acc.user.id ? { ...u, password } : u)),
-      );
-    else
-      setClients((cs) =>
-        cs.map((c) => (c.id === acc.user.id ? { ...c, password } : c)),
-      );
-  };
-  const emailTaken = (email: string) => !!findAccount(email);
 
   const addToCart: AddToCart = (productId, qty) => {
     if (!isValidCatalogQuantity(qty)) {
@@ -1411,11 +1444,9 @@ function AppMain({
           {toaster}
           <LoginView
             setView={setView}
-            findAccount={findAccount}
             onLogin={onLogin}
             lockouts={lockouts}
             setLockouts={setLockouts}
-            resetPassword={resetPassword}
             notice={notice}
           />
         </AuthArea>
@@ -1432,7 +1463,6 @@ function AppMain({
           {toaster}
           <RegisterView
             setView={setView}
-            emailTaken={emailTaken}
             onRegister={(c) => {
               setClients((cs) => [...cs, c]);
               onLogin({ kind: "client", user: c });
@@ -1621,9 +1651,13 @@ function AppMain({
             clients={clients}
             takenEmails={internalUsers.map((u) => u.email.toLowerCase())}
             orders={orders}
-            onSave={(c) =>
-              setClients((cs) => cs.map((x) => (x.id === c.id ? c : x)))
-            }
+            onSave={async (profile) => {
+              const updatedClient = await clientService.updateProfile(profile);
+
+              setClients((cs) =>
+                cs.map((x) => (x.id === updatedClient.id ? updatedClient : x)),
+              );
+            }}
             onDelete={() => {
               const id = currentClient.id;
               setSavedCarts((s) => {

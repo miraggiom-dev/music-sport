@@ -7,14 +7,13 @@ import {
   type ProfileForm,
 } from "./profileValidation";
 
-const client: ProfileForm & { id: string; password: string } = {
+const client: ProfileForm & { id: string } = {
   id: "C001",
   name: "Cliente Demo",
   email: "cliente@example.com",
   phone: "0414-1234567",
   address: "Calle principal 123",
   docId: "V-12345678",
-  password: "cliente123",
 };
 
 const emptyPassword = { current: "", next: "", confirm: "" };
@@ -24,6 +23,7 @@ describe("hasIssuedOrder", () => {
     expect(
       hasIssuedOrder("C001", [{ clientId: "C002" }, { clientId: "C001" }]),
     ).toBe(true);
+
     expect(hasIssuedOrder("C001", [{ clientId: "C002" }])).toBe(false);
   });
 });
@@ -111,7 +111,7 @@ describe("validateClientProfile", () => {
     expect(errors.docId).toBe("Formato inválido (ej: V-123456789)");
   });
 
-  it("valida la confirmación aunque no se haya escrito la contraseña actual", () => {
+  it("exige la contraseña actual y valida la nueva y su confirmación", () => {
     const errors = validateClientProfile(
       client,
       { current: "", next: "", confirm: "texto" },
@@ -120,9 +120,27 @@ describe("validateClientProfile", () => {
       [],
     );
 
-    expect(errors.current).toBe("La contraseña actual no es correcta");
+    expect(errors.current).toBe("Introduce tu contraseña actual");
     expect(errors.next).toBe("Entre 6 y 50 caracteres");
     expect(errors.confirm).toBe("Las contraseñas no coinciden");
+  });
+
+  it("no verifica la contraseña actual en el frontend", () => {
+    const errors = validateClientProfile(
+      client,
+      {
+        current: "contraseña-introducida",
+        next: "nueva123",
+        confirm: "nueva123",
+      },
+      client,
+      [client],
+      [],
+    );
+
+    expect(errors.current).toBeUndefined();
+    expect(errors.next).toBeUndefined();
+    expect(errors.confirm).toBeUndefined();
   });
 
   it("rechaza correos duplicados ignorando mayúsculas y espacios", () => {

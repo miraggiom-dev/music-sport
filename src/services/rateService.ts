@@ -1,5 +1,4 @@
 import type { ExchangeRate } from "@/types";
-import { initRates } from "@/data/mockData";
 
 const API_URL = "/api/rates";
 
@@ -33,11 +32,6 @@ async function request(
 }
 
 export const rateService = {
-  // Compatibilidad con las pruebas y componentes que usan datos iniciales.
-  list: (): ExchangeRate[] => [...initRates],
-
-  active: (): ExchangeRate | undefined => initRates.find((rate) => rate.active),
-
   async getAll(): Promise<ExchangeRate[]> {
     const data = await request("");
     return data.rates || [];

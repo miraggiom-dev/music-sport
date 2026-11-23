@@ -1,5 +1,4 @@
-
-import type { Account, Client, InternalUser, Role } from "@/types";
+import type { Role } from "@/types";
 
 export interface BackendUser {
   id: number;
@@ -30,8 +29,6 @@ interface AuthResponse {
 }
 
 export interface AuthService {
-  findAccount(email: string, users: InternalUser[], clients: Client[]): Account | null;
-  canLogin(account: Account): boolean;
   login(email: string, password: string): Promise<BackendUser>;
   register(data: RegisterData): Promise<BackendUser>;
   getCurrentUser(): Promise<BackendUser | null>;
@@ -51,7 +48,7 @@ async function authRequest(
     },
   });
 
-  const data = await response.json() as AuthResponse;
+  const data = (await response.json()) as AuthResponse;
 
   if (!response.ok) {
     throw new Error(data.message || "Error de autenticación.");
@@ -61,26 +58,6 @@ async function authRequest(
 }
 
 export const authService: AuthService = {
-  findAccount(email, users, clients) {
-    const normalized = email.trim().toLowerCase();
-
-    const staff = users.find(
-      user => user.email.toLowerCase() === normalized,
-    );
-
-    if (staff) return { kind: "staff", user: staff };
-
-    const client = clients.find(
-      user => user.email.toLowerCase() === normalized,
-    );
-
-    return client ? { kind: "client", user: client } : null;
-  },
-
-  canLogin(account) {
-    return account.kind === "client" || account.user.status === "activo";
-  },
-
   async login(email, password) {
     const data = await authRequest("/login", {
       method: "POST",

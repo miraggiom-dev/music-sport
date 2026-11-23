@@ -1,5 +1,4 @@
 import type { Product } from "@/types";
-import { initProducts } from "@/data/mockData";
 
 const API_URL = "/api/products";
 
@@ -35,12 +34,6 @@ async function request(
 }
 
 export const productService = {
-  // Compatibilidad temporal con los componentes que todavía usan datos mock.
-  list: (): Product[] => [...initProducts],
-
-  findById: (id: string): Product | undefined =>
-    initProducts.find((product) => product.id === id),
-
   // Consultar los productos almacenados en SQLite.
   async getAll(): Promise<Product[]> {
     const data = await request("");
@@ -78,13 +71,10 @@ export const productService = {
 
   // Ajustar las existencias del inventario.
   async updateStock(id: string, stock: number): Promise<Product> {
-    const data = await request(
-      `/${encodeURIComponent(id)}/stock`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ stock }),
-      },
-    );
+    const data = await request(`/${encodeURIComponent(id)}/stock`, {
+      method: "PATCH",
+      body: JSON.stringify({ stock }),
+    });
 
     if (!data.product) {
       throw new Error("El servidor no devolvió el inventario actualizado.");
