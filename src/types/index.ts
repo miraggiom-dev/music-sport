@@ -71,6 +71,10 @@ export interface Client {
 export interface Lockout { attempts: number; until: number; }
 export type Period = "diario" | "mensual" | "anual";
 export type ReportType = "ventas" | "inventario";
-export type ChangeStatus = (id: string, status: OrderStatus, extra?: Partial<Order>) => void;
+export type ChangeStatus = (
+  id: string,
+  status: OrderStatus,
+  extra?: Partial<Order>,
+) => Promise<Order | null>;
 export type AddToCart = (productId: string, qty: number) => boolean;
 export type Account = { kind: "staff"; user: InternalUser } | { kind: "client"; user: Client };

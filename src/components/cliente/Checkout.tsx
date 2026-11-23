@@ -214,7 +214,7 @@ export function Checkout({
 }: {
   cart: CartItem[];
   products: Product[];
-  placeOrder: (b: Billing) => Order | null;
+  placeOrder: (b: Billing) => Promise<Order | null>;
   currentUser: Client;
   setView: (v: View) => void;
 }) {
@@ -267,7 +267,7 @@ export function Checkout({
     );
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (submitting) return;
     setSubmitting(true);
     if (!isCompleteClientProfile(currentUser)) {
@@ -311,21 +311,31 @@ export function Checkout({
       notify.error("Completa los campos marcados en rojo");
       return;
     }
-    const order = placeOrder({
-      ...form,
-      reference: needsRef ? form.reference.trim() : "",
-      clientRequestId,
-      recipient: otherRecipient
-        ? {
-            name: recipient.name.trim(),
-            phone: recipient.phone.trim(),
-            address: recipient.address.trim(),
-          }
-        : undefined,
-    });
-    if (order) {
-      setView("order-confirm");
-    } else {
+    try {
+      const order = await placeOrder({
+        ...form,
+        reference: needsRef ? form.reference.trim() : "",
+        clientRequestId,
+        recipient: otherRecipient
+          ? {
+              name: recipient.name.trim(),
+              phone: recipient.phone.trim(),
+              address: recipient.address.trim(),
+            }
+          : undefined,
+      });
+
+      if (order) {
+        setView("order-confirm");
+      } else {
+        setSubmitting(false);
+      }
+    } catch (error) {
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo emitir la orden. Intenta nuevamente.",
+      );
       setSubmitting(false);
     }
   };
@@ -427,11 +437,7 @@ export function Checkout({
                 readOnly: true,
               })}
             </div>
-            {input(
-              "address",
-              "Dirección de entrega *",
-              <MapPin size={13} />,
-            )}
+            {input("address", "Dirección de entrega *", <MapPin size={13} />)}
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
@@ -442,11 +448,11 @@ export function Checkout({
                   setForm((previous) => ({
                     ...previous,
                     recipient: checked
-                      ? previous.recipient ?? {
+                      ? (previous.recipient ?? {
                           name: "",
                           phone: "",
                           address: "",
-                        }
+                        })
                       : undefined,
                   }));
                   setErrors((previous) =>

@@ -152,16 +152,9 @@ import {
   ClientProfile,
   ClientOrders,
 } from "@/components/cliente";
-import {
-  isValidCatalogQuantity,
-} from "@/components/cliente/catalogFilters";
+import { isValidCatalogQuantity } from "@/components/cliente/catalogFilters";
 import { getValidProducts } from "@/components/cliente/productValidation";
-import {
-  StatusBadge,
-  Logo,
-  Input,
-  StatCard,
-} from "@/components/shared";
+import { StatusBadge, Logo, Input, StatCard } from "@/components/shared";
 const LoginView = lazy(() => import("./auth/login/Lazy"));
 const RegisterView = lazy(() => import("./auth/LazyRegister"));
 import { round2, fmt, fmtBs } from "@/lib/formatCurrency";
@@ -357,8 +350,9 @@ async function printReceipt(order: Order) {
   const m = (usd: number) => (inBs && r ? fmtBs(usd * r.value) : fmt(usd));
   const rows = order.items
     .map((i) => {
-      const unitPrice =
-        Number.isFinite(i.unitPrice) ? i.unitPrice : i.product.price;
+      const unitPrice = Number.isFinite(i.unitPrice)
+        ? i.unitPrice
+        : i.product.price;
       return `<tr><td>${escapeHtml(i.productName ?? i.product.name)}</td><td>${escapeHtml(i.sku ?? i.product.sku)}</td><td class="c">${i.qty}</td><td class="r">${m(unitPrice)}</td><td class="r">${m(unitPrice * i.qty)}</td></tr>`;
     })
     .join("");
@@ -845,16 +839,16 @@ function AppMain({
     setCurrentUser,
     currentClientId,
     setCurrentClientId,
-        notice,
-      setNotice,
-      authLoading,
+    notice,
+    setNotice,
+    authLoading,
   } = useAuth();
   const [products, setProducts] = useState<Product[]>(() =>
     getValidProducts(productService.list()),
   );
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCarts, setSavedCarts] = useState<Record<string, CartItem[]>>({});
-  const [orders, setOrders] = useState<Order[]>(orderService.list());
+  const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [internalUsers, setInternalUsers] = useState<InternalUser[]>(initUsers);
   const activeRate = rates.find((r) => r.active) ?? null;
@@ -892,55 +886,55 @@ function AppMain({
   const currentClient = clients.find((c) => c.id === currentClientId) ?? null;
 
   // Recuperar los datos del cliente autenticado desde SQLite.
-// Esto permite reconocer también a los clientes que no están
-// incluidos en la lista local inicial del frontend.
-useEffect(() => {
-  if (role !== "client" || !currentClientId) return;
+  // Esto permite reconocer también a los clientes que no están
+  // incluidos en la lista local inicial del frontend.
+  useEffect(() => {
+    if (role !== "client" || !currentClientId) return;
 
-  let active = true;
+    let active = true;
 
-  async function loadAuthenticatedClient() {
-    const user = await authService.getCurrentUser();
+    async function loadAuthenticatedClient() {
+      const user = await authService.getCurrentUser();
 
-    if (
-      !active ||
-      !user ||
-      user.role !== "client" ||
-      !user.clientId ||
-      String(user.clientId) !== currentClientId
-    ) {
-      return;
+      if (
+        !active ||
+        !user ||
+        user.role !== "client" ||
+        !user.clientId ||
+        String(user.clientId) !== currentClientId
+      ) {
+        return;
+      }
+
+      setClients((previous) => {
+        const alreadyExists = previous.some(
+          (client) => client.id === currentClientId,
+        );
+
+        if (alreadyExists) return previous;
+
+        return [
+          ...previous,
+          {
+            id: String(user.clientId),
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            address: user.address ?? "",
+            docId: user.docId ?? "",
+            createdAt: user.createdAt,
+            password: "",
+          },
+        ];
+      });
     }
 
-    setClients((previous) => {
-      const alreadyExists = previous.some(
-        (client) => client.id === currentClientId,
-      );
+    loadAuthenticatedClient();
 
-      if (alreadyExists) return previous;
-
-      return [
-        ...previous,
-        {
-          id: String(user.clientId),
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          address: user.address ?? "",
-          docId: user.docId ?? "",
-          createdAt: user.createdAt,
-          password: "",
-        },
-      ];
-    });
-  }
-
-  loadAuthenticatedClient();
-
-  return () => {
-    active = false;
-  };
-}, [role, currentClientId]);
+    return () => {
+      active = false;
+    };
+  }, [role, currentClientId]);
 
   const selectedProduct =
     products.find((p) => p.id === selectedProductId) ?? null;
@@ -981,7 +975,7 @@ useEffect(() => {
       return;
     }
 
-    setViewRaw((current) => current === routedView ? current : routedView);
+    setViewRaw((current) => (current === routedView ? current : routedView));
     if (routedView === "product-detail") {
       setSelectedProductId((current) =>
         current === productIdForPath(location.pathname)
@@ -992,7 +986,7 @@ useEffect(() => {
       setSelectedProductId((current) => (current === null ? current : null));
     }
   }, [location.pathname, role, navigate]);
-    useEffect(() => {
+  useEffect(() => {
     // Si el usuario existe en la lista local y está inactivo,
     // se cierra su sesión. Si no aparece, no se asume que fue eliminado,
     // porque ahora la autenticación proviene de SQLite.
@@ -1047,7 +1041,31 @@ useEffect(() => {
     };
   }, [role]);
 
-    async function logout(msg = "") {
+  useEffect(() => {
+    if (authLoading) return;
+
+    let cancelled = false;
+
+    const loadOrders = async () => {
+      try {
+        const loadedOrders = await orderService.getAll();
+
+        if (!cancelled) {
+          setOrders(loadedOrders);
+        }
+      } catch (error) {
+        console.error("Error al cargar los pedidos:", error);
+      }
+    };
+
+    void loadOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, role]);
+
+  async function logout(msg = "") {
     // Guardar el carrito del cliente antes de cerrar sesión.
     if (currentClientId) {
       setSavedCarts((s) => ({
@@ -1169,8 +1187,9 @@ useEffect(() => {
     return true;
   };
 
-  const placeOrder = (billing: Billing): Order | null => {
+  const placeOrder = async (billing: Billing): Promise<Order | null> => {
     if (!currentClient) return null;
+
     const existingOrder = billing.clientRequestId
       ? orders.find(
           (order) =>
@@ -1178,39 +1197,34 @@ useEffect(() => {
             order.clientRequestId === billing.clientRequestId,
         )
       : undefined;
+
     if (existingOrder) {
       setLastOrderId(existingOrder.id);
       setCart([]);
       return existingOrder;
     }
-    const lines = cart.map((i) => ({
-      product: products.find((p) => p.id === i.product.id),
-      qty: i.qty,
+
+    const lines = cart.map((item) => ({
+      product: products.find((product) => product.id === item.product.id),
+      qty: item.qty,
     }));
+
     const conflict = lines.find(
-      (l) => !l.product || !l.product.active || l.qty > l.product.stock,
+      (line) =>
+        !line.product || !line.product.active || line.qty > line.product.stock,
     );
+
     if (conflict) {
       notify.error("El stock cambió mientras comprabas", {
-        description: `${conflict.product?.name ?? "Un producto"} ya no tiene la cantidad solicitada. Revisa tu carrito.`,
+        description: `${
+          conflict.product?.name ?? "Un producto"
+        } ya no tiene la cantidad solicitada. Revisa tu carrito.`,
       });
+
       goTo("cart");
       return null;
     }
-    const items = lines.map((l) => ({
-      product: l.product!,
-      qty: l.qty,
-      productId: l.product!.id,
-      productName: l.product!.name,
-      sku: l.product!.sku,
-      unitPrice: l.product!.price,
-    }));
-    const now = new Date().toISOString();
-    const num =
-      Math.max(
-        1000,
-        ...orders.map((o) => Number(o.id.replace(/\D/g, "")) || 0),
-      ) + 1;
+
     const normalizedBilling: Billing = {
       ...billing,
       name: currentClient.name,
@@ -1227,89 +1241,106 @@ useEffect(() => {
           }
         : undefined,
     };
-    const order: Order = {
-      id: `ORD-${num}`,
-      clientId: currentClient.id,
-      clientName: currentClient.name,
-      clientEmail: currentClient.email,
-      items,
-      ...calcTotals(
-        items,
-        BS_METHODS.includes(normalizedBilling.method) ? "IVA" : "IGTF",
-      ),
-      status: "pendiente",
-      date: toISODate(new Date()),
-      clientRequestId: billing.clientRequestId,
-      createdAt: now,
-      updatedAt: now,
-      address:
-        normalizedBilling.recipient?.address ?? normalizedBilling.address,
-      phone: normalizedBilling.recipient?.phone ?? normalizedBilling.phone,
-      billing: normalizedBilling,
-      currency: BS_METHODS.includes(normalizedBilling.method) ? "VES" : "USD",
-      rate: activeRate
-        ? {
-            name: activeRate.name,
-            value: activeRate.value,
-            updatedAt: activeRate.updatedAt,
-          }
-        : undefined,
-    };
-    if (order.currency === "VES" && !order.rate) {
+
+    const isBsPayment = BS_METHODS.includes(normalizedBilling.method);
+
+    if (isBsPayment && !activeRate) {
       notify.error("No hay tasa de cambio activa para pagos en bolívares");
       return null;
     }
-    if (!currentClient.docId.trim() && billing.docId.trim()) {
-      setClients((cs) =>
-        cs.map((client) =>
-          client.id === currentClient.id
-            ? { ...client, docId: billing.docId.trim().toUpperCase() }
-            : client,
-        ),
-      );
-    }
-    setProducts((ps) =>
-      ps.map((p) => {
-        const l = items.find((i) => i.product.id === p.id);
-        return l ? { ...p, stock: p.stock - l.qty } : p;
-      }),
-    );
-    setOrders((os) => [order, ...os]);
-    setCart([]);
-    setLastOrderId(order.id);
-    notify.success(`Orden ${order.id} emitida`);
-    return order;
-  };
 
-  const changeStatus: ChangeStatus = (id, status, extra = {}) => {
-    const o = orders.find((x) => x.id === id);
-    if (!o || o.status === status) return;
-    if (!NEXT_STATUS[o.status].includes(status)) return;
-    const now = new Date().toISOString();
-    if (status === "cancelado" && o.status !== "cancelado") {
-      setProducts((ps) =>
-        ps.map((p) => {
-          const l = o.items.find((i) => i.product.id === p.id);
-          return l ? { ...p, stock: p.stock + l.qty } : p;
+    try {
+      const createdOrder = await orderService.create(
+        normalizedBilling,
+        cart.map((item) => ({
+          productId: item.product.id,
+          qty: item.qty,
+        })),
+        activeRate
+          ? {
+              name: activeRate.name,
+              value: activeRate.value,
+              updatedAt: activeRate.updatedAt,
+            }
+          : undefined,
+      );
+
+      setOrders((previous) => [
+        createdOrder,
+        ...previous.filter((order) => order.id !== createdOrder.id),
+      ]);
+
+      // Sincronizar las existencias devueltas por el servidor.
+      setProducts((previous) =>
+        previous.map((product) => {
+          const updatedLine = createdOrder.items.find(
+            (item) => item.productId === product.id,
+          );
+
+          return updatedLine
+            ? { ...product, stock: updatedLine.product.stock }
+            : product;
         }),
       );
+
+      setCart([]);
+      setLastOrderId(createdOrder.id);
+
+      notify.success(`Orden ${createdOrder.id} emitida`);
+
+      return createdOrder;
+    } catch (error) {
+      throw error;
     }
-    const patch: Partial<Order> = { ...extra, status, updatedAt: now };
-    if (status === "cancelado") {
-      patch.cancelledAt = now;
-      patch.cancelledBy = role === "client" ? "client" : "staff";
-      patch.receiptNo = undefined;
-      patch.paidAt = undefined;
+  };
+
+  const changeStatus: ChangeStatus = async (
+    id,
+    status,
+    extra = {},
+  ): Promise<Order | null> => {
+    const existingOrder = orders.find((order) => order.id === id);
+
+    if (!existingOrder || existingOrder.status === status) {
+      return null;
     }
-    if (status === "procesando") {
-      patch.reviewedAt = patch.reviewedAt ?? now;
-      patch.reviewedBy = patch.reviewedBy ?? currentUser?.id ?? "staff";
-      if (!o.receiptNo) {
-        patch.receiptNo = patch.receiptNo ?? `REC-${o.id.replace(/\D/g, "")}`;
-        patch.paidAt = patch.paidAt ?? toISODate(new Date());
-      }
+
+    if (!NEXT_STATUS[existingOrder.status].includes(status)) {
+      return null;
     }
-    setOrders((os) => os.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
+    try {
+      const updatedOrder = await orderService.changeStatus(id, status, extra);
+
+      setOrders((previous) =>
+        previous.map((order) => (order.id === id ? updatedOrder : order)),
+      );
+
+      // El servidor devuelve el stock actualizado de cada producto.
+      setProducts((previous) =>
+        previous.map((product) => {
+          const updatedLine = updatedOrder.items.find(
+            (item) => item.productId === product.id,
+          );
+
+          return updatedLine
+            ? { ...product, stock: updatedLine.product.stock }
+            : product;
+        }),
+      );
+
+      notify.success(`Orden ${id} actualizada`);
+
+      return updatedOrder;
+    } catch (error) {
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar la orden.",
+      );
+
+      return null;
+    }
   };
 
   const isInternal = role === "admin" || role === "vendor";
@@ -1335,7 +1366,7 @@ useEffect(() => {
   if (authLoading) {
     return <PageLoading />;
   }
-  
+
   if (view === "login")
     return (
       <Suspense

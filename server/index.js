@@ -1,3 +1,4 @@
+
 import express from 'express';
 import session from 'express-session';
 import db from '../database/connection.js';
@@ -5,6 +6,7 @@ import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import clientsRoutes from './routes/clients.js';
 import productsRoutes from './routes/products.js';
+import ordersRoutes from './routes/orders.js';
 
 const app = express();
 const PORT = 3000;
@@ -29,6 +31,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/orders', ordersRoutes);
 
 app.get('/api/status', (req, res) => {
   res.json({
