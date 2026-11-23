@@ -1,30 +1,28 @@
 ﻿
 PRAGMA foreign_keys = ON;
 
-BEGIN IMMEDIATE;
-
 -- =============================================
 -- USUARIOS DE DEMOSTRACION
--- ContraseÃ±a de todas las cuentas: Demo123!
+-- Contraseña de todas las cuentas: Demo123!
 -- Se conserva el administrador existente.
 -- =============================================
 
 INSERT INTO USUARIO
 (id_usuario, nombre, correo, telefono, contrasena, rol, estado)
 VALUES
-(2, 'AndrÃ©s Castillo', 'andres.castillo@gmail.com', '04141234567',
+(2, 'Andrés Castillo', 'andres.castillo@gmail.com', '04141234567',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'vendor', 'activo'),
 (3, 'Valentina Rojas', 'valentina.rojas@gmail.com', '04161234567',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'vendor', 'activo'),
-(4, 'Daniela PÃ©rez', 'daniela.perez@gmail.com', '04121234567',
+(4, 'Daniela Pérez', 'daniela.perez@gmail.com', '04121234567',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'client', 'activo'),
 (5, 'Gabriel Mendoza', 'gabriel.mendoza@gmail.com', '04141234568',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'client', 'activo'),
 (6, 'Mariana Torres', 'mariana.torres@gmail.com', '04161234568',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'client', 'activo'),
-(7, 'SebastiÃ¡n Herrera', 'sebastian.herrera@gmail.com', '04121234568',
+(7, 'Sebastián Herrera', 'sebastian.herrera@gmail.com', '04121234568',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'client', 'activo'),
-(8, 'Camila FernÃ¡ndez', 'camila.fernandez@gmail.com', '04141234569',
+(8, 'Camila Fernández', 'camila.fernandez@gmail.com', '04141234569',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'client', 'activo'),
 (9, 'Ricardo Salazar', 'ricardo.salazar@gmail.com', '04161234569',
  '$2b$10$edhhnvFW9brHvE.9ZXqHhewIWYudc/5nE7cS.Bpc6sIMsA6LQ3n1G', 'client', 'activo');
@@ -40,7 +38,7 @@ VALUES
 (2, 5, 'Urb. El Trigal, Valencia', 'V-26789451'),
 (3, 6, 'Av. Las Delicias, Maracay', 'V-30124567'),
 (4, 7, 'Urb. La Lago, Maracaibo', 'V-25478963'),
-(5, 8, 'Av. BolÃ­var, Barquisimeto', 'V-28963415'),
+(5, 8, 'Av. Bolívar, Barquisimeto', 'V-28963415'),
 (6, 9, 'Urb. Los Naranjos, Caracas', 'V-27654389');
 
 -- =============================================
@@ -48,47 +46,47 @@ VALUES
 -- =============================================
 
 INSERT INTO PRODUCTO
-(id_producto, sku, nombre, descripcion, categoria, subcategoria, precio, activo)
+(id_producto, sku, nombre, descripcion, categoria, subcategoria, precio, imagen, activo)
 VALUES
-(1, 'MS-MUS-001', 'Guitarra acÃºstica Yamaha F310',
- 'Guitarra acÃºstica de seis cuerdas ideal para principiantes.',
- 'MÃºsica', 'Guitarras', 249.99, 1),
+(1, 'MS-MUS-001', 'Guitarra acústica Yamaha F310',
+ 'Guitarra acústica de seis cuerdas ideal para principiantes.',
+ 'Música', 'Guitarras', 249.99, '/product-images/guitarra.webp', 1),
 
 (2, 'MS-MUS-002', 'Teclado musical Casio CT-S300',
- 'Teclado electrÃ³nico portÃ¡til de 61 teclas.',
- 'MÃºsica', 'Teclados', 179.50, 1),
+ 'Teclado electrónico portátil de 61 teclas.',
+ 'Música', 'Teclados', 179.50, '/product-images/teclado.webp', 1),
 
-(3, 'MS-MUS-003', 'MicrÃ³fono dinÃ¡mico Shure SM58',
- 'MicrÃ³fono profesional para voces y presentaciones.',
- 'MÃºsica', 'MicrÃ³fonos', 59.99, 1),
+(3, 'MS-MUS-003', 'Micrófono dinámico Shure SM58',
+ 'Micrófono profesional para voces y presentaciones.',
+ 'Música', 'Micrófonos', 59.99, '/product-images/microfono.webp', 1),
 
-(4, 'MS-DEP-004', 'BalÃ³n de fÃºtbol Adidas',
- 'BalÃ³n de fÃºtbol para entrenamiento y recreaciÃ³n.',
- 'Deportes', 'FÃºtbol', 29.99, 1),
+(4, 'MS-DEP-004', 'Balón de fútbol Adidas',
+ 'Balón de fútbol para entrenamiento y recreación.',
+ 'Deportes', 'Fútbol', 29.99, '/product-images/balon-adidas.webp', 1),
 
-(5, 'MS-DEP-005', 'BalÃ³n de baloncesto Spalding',
- 'BalÃ³n de baloncesto de tamaÃ±o oficial.',
- 'Deportes', 'Baloncesto', 34.99, 1),
+(5, 'MS-DEP-005', 'Balón de baloncesto Spalding',
+ 'Balón de baloncesto de tamaño oficial.',
+ 'Deportes', 'Baloncesto', 34.99, '/product-images/balon-baloncesto.webp', 1),
 
-(6, 'MS-DEP-006', 'BalÃ³n de voleibol Mikasa',
- 'BalÃ³n de voleibol para entrenamiento y competiciÃ³n.',
- 'Deportes', 'Voleibol', 24.99, 1),
+(6, 'MS-DEP-006', 'Balón de voleibol Mikasa',
+ 'Balón de voleibol para entrenamiento y competición.',
+ 'Deportes', 'Voleibol', 24.99, '/product-images/balon-volleyball.webp', 1),
 
 (7, 'MS-FIT-007', 'Set de mancuernas ajustables',
  'Juego de pesas para entrenamiento de fuerza.',
- 'Fitness', 'Pesas', 44.50, 1),
+ 'Fitness', 'Pesas', 44.50, '/product-images/mancuernas.webp', 1),
 
 (8, 'MS-FIT-008', 'Colchoneta deportiva',
  'Colchoneta antideslizante para yoga y ejercicios.',
- 'Fitness', 'Yoga', 19.99, 1),
+ 'Fitness', 'Yoga', 19.99, '/product-images/colchoneta.webp', 1),
 
 (9, 'MS-DEP-009', 'Raqueta de tenis Wilson',
  'Raqueta ligera para jugadores recreativos.',
- 'Deportes', 'Tenis', 79.99, 1),
+ 'Deportes', 'Tenis', 79.99, '/product-images/raqueta.webp', 1),
 
 (10, 'MS-MUS-010', 'Baquetas Vic Firth 5A',
- 'Par de baquetas de madera para baterÃ­a.',
- 'MÃºsica', 'PercusiÃ³n', 14.99, 1);
+ 'Par de baquetas de madera para batería.',
+ 'Música', 'Percusión', 14.99, '/product-images/baquetas.webp', 1);
 
 -- =============================================
 -- INVENTARIO
@@ -110,7 +108,7 @@ VALUES
 
 -- =============================================
 -- TASAS DE CAMBIO
--- Valores ficticios para demostraciÃ³n.
+-- Valores ficticios para demostración.
 -- =============================================
 
 INSERT INTO TASA_CAMBIO
@@ -137,9 +135,9 @@ VALUES
 (1, 'MS-2026-001', 1, 'completado',
  264.98, 42.40, 'IVA', 307.38, 'USD',
  'BCV', 365.2500, '2026-11-04 10:00:00',
- 'Daniela PÃ©rez', 'V-28456789', 'daniela.perez@gmail.com',
+ 'Daniela Pérez', 'V-28456789', 'daniela.perez@gmail.com',
  '04121234567', 'Av. Francisco de Miranda, Caracas',
- 'Daniela PÃ©rez', '04121234567', 'Av. Francisco de Miranda, Caracas',
+ 'Daniela Pérez', '04121234567', 'Av. Francisco de Miranda, Caracas',
  '2026-11-04 10:00:00', '2026-11-05 15:30:00'),
 
 (2, 'MS-2026-002', 2, 'despachado',
@@ -161,17 +159,17 @@ VALUES
 (4, 'MS-2026-004', 4, 'pendiente',
  49.98, 8.00, 'IVA', 57.98, 'USD',
  'BCV', 365.2500, '2026-11-21 09:15:00',
- 'SebastiÃ¡n Herrera', 'V-25478963', 'sebastian.herrera@gmail.com',
+ 'Sebastián Herrera', 'V-25478963', 'sebastian.herrera@gmail.com',
  '04121234568', 'Urb. La Lago, Maracaibo',
- 'SebastiÃ¡n Herrera', '04121234568', 'Urb. La Lago, Maracaibo',
+ 'Sebastián Herrera', '04121234568', 'Urb. La Lago, Maracaibo',
  '2026-11-21 09:15:00', '2026-11-21 09:15:00'),
 
 (5, 'MS-2026-005', 5, 'pendiente',
  64.49, 10.32, 'IVA', 74.81, 'USD',
  'BCV', 365.2500, '2026-11-22 16:40:00',
- 'Camila FernÃ¡ndez', 'V-28963415', 'camila.fernandez@gmail.com',
- '04141234569', 'Av. BolÃ­var, Barquisimeto',
- 'Camila FernÃ¡ndez', '04141234569', 'Av. BolÃ­var, Barquisimeto',
+ 'Camila Fernández', 'V-28963415', 'camila.fernandez@gmail.com',
+ '04141234569', 'Av. Bolívar, Barquisimeto',
+ 'Camila Fernández', '04141234569', 'Av. Bolívar, Barquisimeto',
  '2026-11-22 16:40:00', '2026-11-22 16:40:00'),
 
 (6, 'MS-2026-006', 6, 'completado',
@@ -189,16 +187,16 @@ VALUES
 INSERT INTO DETALLE_COMPRA
 (id_detalle, id_orden, id_producto, nombre_producto, sku, cantidad, precio_unitario, subtotal)
 VALUES
-(1, 1, 1, 'Guitarra acÃºstica Yamaha F310', 'MS-MUS-001', 1, 249.99, 249.99),
+(1, 1, 1, 'Guitarra acústica Yamaha F310', 'MS-MUS-001', 1, 249.99, 249.99),
 (2, 1, 10, 'Baquetas Vic Firth 5A', 'MS-MUS-010', 1, 14.99, 14.99),
 
-(3, 2, 4, 'BalÃ³n de fÃºtbol Adidas', 'MS-DEP-004', 1, 29.99, 29.99),
-(4, 2, 5, 'BalÃ³n de baloncesto Spalding', 'MS-DEP-005', 1, 34.99, 34.99),
+(3, 2, 4, 'Balón de fútbol Adidas', 'MS-DEP-004', 1, 29.99, 29.99),
+(4, 2, 5, 'Balón de baloncesto Spalding', 'MS-DEP-005', 1, 34.99, 34.99),
 
-(5, 3, 3, 'MicrÃ³fono dinÃ¡mico Shure SM58', 'MS-MUS-003', 1, 59.99, 59.99),
+(5, 3, 3, 'Micrófono dinámico Shure SM58', 'MS-MUS-003', 1, 59.99, 59.99),
 (6, 3, 10, 'Baquetas Vic Firth 5A', 'MS-MUS-010', 1, 14.99, 14.99),
 
-(7, 4, 6, 'BalÃ³n de voleibol Mikasa', 'MS-DEP-006', 2, 24.99, 49.98),
+(7, 4, 6, 'Balón de voleibol Mikasa', 'MS-DEP-006', 2, 24.99, 49.98),
 
 (8, 5, 8, 'Colchoneta deportiva', 'MS-FIT-008', 1, 19.99, 19.99),
 (9, 5, 7, 'Set de mancuernas ajustables', 'MS-FIT-007', 1, 44.50, 44.50),
@@ -272,5 +270,3 @@ INSERT INTO INFORME
 VALUES
 (1, 1, 'ventas', 'mensual', '2026-11-01', '2026-11-30'),
 (2, 1, 'inventario', 'mensual', '2026-11-01', '2026-11-30');
-
-COMMIT;

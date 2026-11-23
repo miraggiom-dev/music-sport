@@ -33,6 +33,7 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Proceso de checkout.
 - Registro y consulta de órdenes.
 - Consulta y actualización del perfil.
+- Footer responsive con navegación de compra, ayuda, empresa y enlaces legales.
 
 ### Funcionalidades generales
 - Autenticación mediante correo y contraseña.
@@ -176,6 +177,17 @@ APP WEB/
 |   +-- main.tsx
 |
 +-- public/
+|   +-- product-images/
+|       +-- guitarra.webp
+|       +-- teclado.webp
+|       +-- microfono.webp
+|       +-- balon-adidas.webp
+|       +-- balon-baloncesto.webp
+|       +-- balon-volleyball.webp
+|       +-- mancuernas.webp
+|       +-- colchoneta.webp
+|       +-- raqueta.webp
+|       +-- baquetas.webp
 +-- package.json
 +-- pnpm-lock.yaml
 +-- INICIAR.bat
@@ -183,6 +195,23 @@ APP WEB/
 ```
 
 La carpeta `data/` se genera localmente al iniciar el servidor. No se incluye en el repositorio porque contiene la base de datos de cada instalación.
+
+### Imágenes de los productos
+
+Los diez productos de demostración utilizan imágenes WebP locales almacenadas
+en `public/product-images/`. Las rutas se asocian en `database/demo-data.sql`
+y `database/connection.js`.
+
+Las imágenes locales permiten que el catálogo, el carrito y el detalle de
+productos funcionen sin depender de servicios externos. Una imagen personalizada
+que ya haya sido cargada en la administración no se reemplaza automáticamente.
+
+### Footer
+
+El footer del catálogo sigue la identidad visual de Music&Sport y presenta
+secciones responsive para compra, ayuda, empresa y enlaces legales. Los títulos
+de sección utilizan un tamaño mayor y los enlaces y textos secundarios mantienen
+una medida uniforme.
 
 ## 5. Requisitos
 
@@ -206,9 +235,8 @@ cd music-sport
 
 ### Instalar dependencias
 
-```bash
-pnpm install
-```
+No es necesario ejecutarlo manualmente. `INICIAR.bat` habilita pnpm y ejecuta
+`pnpm install` automáticamente la primera vez.
 
 ### Inicializar la base de datos
 
@@ -228,13 +256,11 @@ Una vez que el servidor haya iniciado correctamente, se puede detener con `Ctrl 
 
 El proyecto incluye el archivo `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
 
-Después de inicializar la base de datos por primera vez, ejecutar el siguiente comando desde la carpeta del proyecto:
-
-```bash
-node --input-type=module -e "import Database from 'better-sqlite3'; import { readFileSync } from 'node:fs'; const db = new Database('./data/music-sport.db'); try { db.pragma('foreign_keys = ON'); db.exec(readFileSync('./database/demo-data.sql', 'utf8').replace(/^\uFEFF/, '')); console.log('Datos de demostración cargados correctamente.'); } finally { db.close(); }"
-```
-
-Este procedimiento se realiza una sola vez por cada base de datos nueva. No debe ejecutarse nuevamente sobre una base que ya contenga los registros de demostración.
+En una base de datos nueva, `database/connection.js` carga los datos
+automáticamente después de crear el esquema y el administrador. El registro
+interno `INICIALIZACION/demo-data` impide repetir la carga. Una instalación
+que ya contiene datos conserva su información y marca la inicialización como
+omitida sin modificar los registros existentes.
 
 Las cuentas de demostración utilizan la contraseña:
 
@@ -253,9 +279,13 @@ INICIAR.bat
 El archivo realiza las siguientes operaciones:
 
 1. Accede a la carpeta del proyecto.
-2. Compila el frontend.
-3. Inicia el servidor Express.
-4. Abre el navegador en la dirección local.
+2. Comprueba Node.js.
+3. Prepara pnpm y las dependencias cuando sean necesarias.
+4. Compila el frontend.
+5. Inicializa SQLite y carga los datos de demostración solamente si corresponde.
+6. Genera o reutiliza un secreto persistente para las sesiones.
+7. Inicia el servidor Express en producción local.
+8. Abre el navegador en la dirección local.
 
 La aplicación estará disponible en:
 

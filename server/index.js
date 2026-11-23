@@ -3,7 +3,8 @@ import express from "express";
 import session from "express-session";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 
 import db from "../database/connection.js";
 import { SQLiteSessionStore } from "./sessionStore.js";
@@ -19,11 +20,35 @@ const app = express();
 
 const PORT = Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === "production";
+const currentDirectory = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(currentDirectory, "..");
 
-const sessionSecret = isProduction
-  ? process.env.SESSION_SECRET
-  : process.env.SESSION_SECRET ||
-    "music-sport-local-development-secret-change-before-production";
+const dataDirectory = process.env.DATA_DIRECTORY
+  ? resolve(process.env.DATA_DIRECTORY)
+  : resolve(projectRoot, "data");
+
+mkdirSync(dataDirectory, { recursive: true });
+
+const secretFile = resolve(dataDirectory, ".session-secret");
+
+function loadOrCreateSessionSecret() {
+  if (process.env.SESSION_SECRET?.trim()) {
+    return process.env.SESSION_SECRET.trim();
+  }
+
+  if (existsSync(secretFile)) {
+    const persistedSecret = readFileSync(secretFile, "utf8").trim();
+    if (persistedSecret.length >= 32) {
+      return persistedSecret;
+    }
+  }
+
+  const generatedSecret = randomBytes(48).toString("hex");
+  writeFileSync(secretFile, generatedSecret, { encoding: "utf8", mode: 0o600 });
+  return generatedSecret;
+}
+
+const sessionSecret = loadOrCreateSessionSecret();
 
 if (isProduction && (!sessionSecret || sessionSecret.length < 32)) {
   throw new Error(
@@ -31,9 +56,7 @@ if (isProduction && (!sessionSecret || sessionSecret.length < 32)) {
   );
 }
 
-if (isProduction) {
-  app.set("trust proxy", 1);
-}
+app.set("trust proxy", 1);
 
 app.use(express.json({ limit: "5mb" }));
 
@@ -49,7 +72,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: isProduction,
+      secure: false,
       sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 8,
     },
@@ -94,8 +117,6 @@ app.get("/api/db-status", (req, res) => {
 });
 
 // Servir la aplicación React compilada.
-const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(currentDirectory, "..");
 const distDirectory = resolve(projectRoot, "dist");
 const indexFile = resolve(distDirectory, "index.html");
 

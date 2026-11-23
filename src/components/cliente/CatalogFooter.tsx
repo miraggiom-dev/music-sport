@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  Lock,
+  ShieldCheck,
+  ShoppingCart,
+  X,
+} from "lucide-react";
 import logoImg from "@/imports/Logo.png";
 import type { View } from "@/types";
 
@@ -28,9 +34,51 @@ const questions = [
 
 export function CatalogFooter({ setView }: { setView: (v: View) => void }) {
   const [openQuestion, setOpenQuestion] = useState<number | null>(null);
+  const [legalDocument, setLegalDocument] = useState<
+    "privacy" | "terms" | "security" | "rights" | null
+  >(null);
+
+  const legalContent = {
+    privacy: {
+      title: "Política de privacidad",
+      text: "Music&Sport protege los datos proporcionados durante el registro y la compra. La información se utiliza para gestionar cuentas, órdenes, pagos y atención al cliente.",
+    },
+    terms: {
+      title: "Términos y condiciones",
+      text: "Al utilizar Music&Sport aceptas las condiciones de compra, entrega y devolución informadas en la aplicación. Los precios y disponibilidades pueden actualizarse.",
+    },
+    security: {
+      title: "Seguridad",
+      text: "Las sesiones se protegen con cookies HTTP-only y la información se transmite dentro del entorno local seguro de la aplicación.",
+    },
+    rights: {
+      title: "Derechos legales",
+      text: "Music&Sport DSS, C.A. Todos los derechos reservados. Las marcas y productos mostrados pertenecen a sus respectivos propietarios.",
+    },
+  };
+
+  const openPaymentInfo = () => {
+    setOpenQuestion(1);
+    document
+      .getElementById("preguntas-frecuentes")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <footer className="mt-10">
+      <style>{`
+        .catalog-footer-heading {
+          font-size: 18px;
+          line-height: 22px;
+          font-weight: 700;
+        }
+        .catalog-footer-secondary,
+        .catalog-footer-secondary * {
+          font-size: 12px;
+          line-height: 20px;
+          font-weight: 400;
+        }
+      `}</style>
       <section
         id="preguntas-frecuentes"
         className="border-t-8 border-[#000080] bg-white px-4 py-8 sm:px-6 md:py-10"
@@ -89,40 +137,160 @@ export function CatalogFooter({ setView }: { setView: (v: View) => void }) {
         </div>
       </section>
 
-      <section className="bg-[#000080] px-4 py-8 text-white sm:px-6 md:py-10">
-        <div className="max-w-7xl mx-auto grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <img src={logoImg} alt="" className="h-10 w-10 rounded-full object-cover" />
-              <span className="text-lg font-black">MUSIC &amp; SPORT</span>
+      <section className="bg-[#000080] px-4 py-9 text-white sm:px-6 md:py-10">
+        <div className="mx-auto grid max-w-7xl gap-8 sm:grid-cols-2 lg:grid-cols-12">
+          <div className="lg:col-span-3">
+            <div className="flex items-center gap-3">
+              <img
+                src={logoImg}
+                alt="Music&Sport"
+                className="h-12 w-12 rounded-full object-cover"
+              />
+              <div>
+                <p
+                  className="text-xl font-black leading-none"
+                  style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+                >
+                  MUSIC&amp;SPORT
+                </p>
+                <p className="mt-1 text-[10px] text-white/60">
+                  Equipa tu pasión
+                </p>
+              </div>
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-white/75">
-              Equipa tu pasión. Compra música y deportes en un solo lugar.
-            </p>
           </div>
-          <div>
-            <h3 className="text-sm font-bold">Catálogo</h3>
-            <button
-              onClick={() => setView("catalog")}
-              className="mt-2 block text-left text-xs text-white/75 hover:text-white"
+
+          <div className="lg:col-span-2">
+            <h3
+              className="catalog-footer-heading"
+              style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
             >
-              Todos los productos
-            </button>
+              Compra
+            </h3>
+            <div className="catalog-footer-secondary mt-3 space-y-2 text-white/65">
+              <button onClick={() => setView("catalog")} className="block hover:text-white">
+                Todos los productos
+              </button>
+              <button onClick={() => setView("client-orders")} className="block hover:text-white">
+                Mis órdenes
+              </button>
+              <button onClick={() => setView("cart")} className="flex items-center gap-1 hover:text-white">
+                <ShoppingCart size={12} /> Mi carrito
+              </button>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold">Ayuda</h3>
-            <p className="mt-2 text-xs text-white/75">Compra segura y atención personalizada.</p>
+
+          <div className="lg:col-span-2">
+            <h3
+              className="catalog-footer-heading"
+              style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+            >
+              Ayuda
+            </h3>
+            <div className="catalog-footer-secondary mt-3 space-y-2 text-white/65">
+              <a href="#preguntas-frecuentes" className="block hover:text-white">
+                Preguntas frecuentes
+              </a>
+              <a href="mailto:soporte@musicsport.com" className="block hover:text-white">
+                Atención al cliente
+              </a>
+              <button onClick={openPaymentInfo} className="block hover:text-white">
+                Métodos de pago
+              </button>
+              <button onClick={() => setOpenQuestion(2)} className="block hover:text-white">
+                Devoluciones y reembolsos
+              </button>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold">Contacto</h3>
-            <p className="mt-2 text-xs text-white/75">soporte@musicsport.com</p>
-            <p className="mt-1 text-xs text-white/75">Lun–Sáb · 8:00–18:00</p>
+
+          <div className="lg:col-span-3">
+            <h3
+              className="catalog-footer-heading"
+              style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+            >
+              Empresa
+            </h3>
+            <div className="catalog-footer-secondary mt-3 space-y-2 text-white/65">
+              <button onClick={() => setView("catalog")} className="block hover:text-white">
+                Nosotros
+              </button>
+              <a href="mailto:soporte@musicsport.com" className="block hover:text-white">
+                soporte@musicsport.com
+              </a>
+              <p>RIF J-50123456-7</p>
+              <p>Lun–Sáb · 8:00–18:00</p>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2">
+            <h3
+              className="catalog-footer-heading"
+              style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+            >
+              Legal
+            </h3>
+            <div className="catalog-footer-secondary mt-3 space-y-2 text-white/65">
+              <button onClick={() => setLegalDocument("privacy")} className="block hover:text-white">
+                Política de privacidad
+              </button>
+              <button onClick={() => setLegalDocument("terms")} className="block hover:text-white">
+                Términos y condiciones
+              </button>
+              <button onClick={() => setLegalDocument("security")} className="block hover:text-white">
+                Seguridad
+              </button>
+              <button onClick={() => setLegalDocument("rights")} className="block hover:text-white">
+                Derechos legales
+              </button>
+            </div>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto mt-8 border-t border-white/15 pt-4 text-center text-[11px] text-white/50">
-          © 2026 Music&amp;Sport DSS, C.A. · Todos los derechos reservados
+
+        <div className="mx-auto mt-8 flex max-w-7xl flex-col gap-3 border-t border-white/15 pt-4 text-[11px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2026 Music&amp;Sport DSS, C.A. Todos los derechos reservados.</p>
+          <div className="flex items-center gap-3 text-white/75" aria-label="Compra segura">
+            <span className="flex items-center gap-1">
+              <ShieldCheck size={14} /> Compra segura
+            </span>
+            <Lock size={14} aria-label="Pago protegido" />
+          </div>
         </div>
       </section>
+
+      {legalDocument && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="legal-title"
+          onMouseDown={() => setLegalDocument(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h2
+                id="legal-title"
+                className="text-xl font-black text-[#000080]"
+                style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+              >
+                {legalContent[legalDocument].title}
+              </h2>
+              <button
+                onClick={() => setLegalDocument(null)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-gray-600">
+              {legalContent[legalDocument].text}
+            </p>
+          </div>
+        </div>
+      )}
     </footer>
   );
 }

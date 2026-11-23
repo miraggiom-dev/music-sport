@@ -2,6 +2,14 @@
 export const schema = `
 PRAGMA foreign_keys = ON;
 
+-- Control interno de inicialización. Permite cargar datos de demostración
+-- una sola vez sin modificar instalaciones existentes.
+CREATE TABLE IF NOT EXISTS INICIALIZACION (
+    clave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL,
+    fecha_actualizacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- =============================================
 -- 1. USUARIOS
 -- =============================================
