@@ -245,29 +245,33 @@ No es necesario ejecutar la instalación manualmente. El archivo `INICIAR.bat` c
 
 ### Inicializar la base de datos
 
-No se requiere ningún comando manual para inicializar SQLite.
+No se requiere ejecutar comandos manuales para inicializar SQLite.
 
-Al iniciar el servidor por primera vez, la aplicación crea automáticamente:
+Al iniciar el servidor, la aplicación realiza automáticamente las siguientes operaciones:
 
-- La carpeta `data/`.
-- El archivo `music-sport.db`.
-- La estructura de las tablas.
-- El administrador inicial, si todavía no existe.
-- Los datos de demostración, cuando corresponde.
+- Crea la carpeta `data/` si no existe.
+- Crea el archivo `music-sport.db` si es necesario.
+- Ejecuta el esquema para crear las tablas que todavía no existan.
+- Crea el administrador principal si su cuenta todavía no existe.
+- Comprueba si corresponde cargar los datos de demostración.
 
-La inicialización de los datos de demostración se controla mediante un registro interno para evitar que se carguen repetidamente.
+Los datos de demostración se cargan automáticamente cuando no existe un registro previo de inicialización, hay exactamente un usuario registrado (el administrador principal) y no hay productos registrados.
 
-Si la base de datos ya contiene información, esta se conserva y no se vuelve a ejecutar la carga de demostración.
+Si estas condiciones no se cumplen, la carga se omite y se registra esta decisión para evitar intentos repetidos. Los datos existentes se conservan.
 
-### Datos de demostración
+#### Datos de demostración
 
 El proyecto incluye el archivo `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
 
-En una base de datos nueva, los datos se cargan automáticamente durante la inicialización. Las cuentas de demostración utilizan la contraseña:
+En una instalación con una base de datos nueva, los registros se cargan automáticamente si se cumplen las condiciones de inicialización. No es necesario ejecutar el archivo SQL manualmente.
+
+Las cuentas de demostración utilizan la contraseña:
 
 ```text
 Demo123!
 ```
+
+La carga se registra internamente para evitar que los mismos datos se inserten repetidamente.
 
 ### Iniciar la aplicación en Windows
 
@@ -343,19 +347,13 @@ Contraseña: admin123
 
 Esta contraseña corresponde a la configuración inicial y debe cambiarse antes de utilizar el sistema en un entorno real.
 
-### Datos de demostración
+### Inicialización y conservación de datos
 
-El proyecto incluye `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
+La aplicación registra el estado de la carga de demostración en la tabla `INICIALIZACION`.
 
-Las cuentas de demostración creadas con esos datos utilizan:
+Cada instalación utiliza su propia base de datos local, ubicada en `data/music-sport.db`. Esta carpeta no se incluye en el repositorio ni en el paquete de entrega.
 
-```text
-Contraseña: Demo123!
-```
-
-La base de datos utilizada por cada instalación local se encuentra en `data/music-sport.db`.
-
-Los archivos de bases de datos están excluidos del repositorio mediante `.gitignore`. De esta manera, cada instalación mantiene sus propios datos locales, mientras que el esquema y los registros de demostración permanecen disponibles en el código fuente.
+El sistema conserva los datos existentes y evita volver a cargar los registros de demostración cuando la inicialización ya fue procesada.
 
 ## 9. Seguridad
 
