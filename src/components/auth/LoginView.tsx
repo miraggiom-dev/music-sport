@@ -14,6 +14,8 @@ import { authService } from "@/services/authService";
 const LOCK_ATTEMPTS = 3;
 const LOCK_MINUTES = 5;
 
+type LoginMode = "login" | "recover-email" | "recover-code" | "recover-done";
+
 export function LoginView({
   setView,
   onLogin,
@@ -27,12 +29,14 @@ export function LoginView({
   setLockouts: React.Dispatch<React.SetStateAction<Record<string, Lockout>>>;
   notice: string;
 }) {
-  const [mode, setMode] = useState<"login" | "recover-email" | "recover-done">(
-    "login",
-  );
+  const [mode, setMode] = useState<LoginMode>("login");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -47,30 +51,29 @@ export function LoginView({
   useEffect(() => {
     if (!lockedFor) return;
 
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
 
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [lockedFor]);
 
-  // Inicio de sesión conectado al backend
   const handleLogin = async () => {
     if (submitting) return;
 
     setNow(Date.now());
 
-    const e: Record<string, string> = {};
+    const validationErrors: Record<string, string> = {};
 
-    if (!key) e.email = "Ingresa tu correo";
+    if (!key) validationErrors.email = "Ingresa tu correo";
     else if (!isValidEmail(key)) {
-      e.email = "Formato de correo inválido";
+      validationErrors.email = "Formato de correo inválido";
     }
 
-    if (!password) e.password = "Ingresa tu contraseña";
+    if (!password) validationErrors.password = "Ingresa tu contraseña";
 
-    setErrors(e);
+    setErrors(validationErrors);
     setError("");
 
-    if (Object.keys(e).length) return;
+    if (Object.keys(validationErrors).length) return;
     if (lock && lock.until > Date.now()) return;
 
     setSubmitting(true);
@@ -114,10 +117,10 @@ export function LoginView({
         };
       }
 
-      setLockouts((l) => {
-        const n = { ...l };
-        delete n[key];
-        return n;
+      setLockouts((current) => {
+        const updated = { ...current };
+        delete updated[key];
+        return updated;
       });
 
       onLogin(account);
@@ -128,8 +131,8 @@ export function LoginView({
           : (lock?.attempts ?? 0)) + 1;
 
       if (attempts >= LOCK_ATTEMPTS) {
-        setLockouts((l) => ({
-          ...l,
+        setLockouts((current) => ({
+          ...current,
           [key]: {
             attempts,
             until: Date.now() + LOCK_MINUTES * 60000,
@@ -140,8 +143,8 @@ export function LoginView({
           `Demasiados intentos fallidos. Acceso bloqueado por ${LOCK_MINUTES} minutos.`,
         );
       } else {
-        setLockouts((l) => ({
-          ...l,
+        setLockouts((current) => ({
+          ...current,
           [key]: { attempts, until: 0 },
         }));
 
@@ -156,26 +159,84 @@ export function LoginView({
     }
   };
 
-  // Recuperación pendiente de implementar con envío real de correo
-  const sendCode = () => {
+  const sendCode = async () => {
+    if (submitting) return;
+
     if (!isValidEmail(key)) {
-      setErrors({
-        email: "Formato de correo inválido",
-      });
+      setErrors({ email: "Formato de correo inválido" });
       return;
     }
 
-    setErrors({
-      email: "La recuperación de contraseña estará disponible próximamente.",
-    });
+    setErrors({});
+    setError("");
+    setSubmitting(true);
+
+    try {
+      await authService.requestPasswordReset(key);
+      setMode("recover-code");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo solicitar la recuperación.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (submitting) return;
+
+    const validationErrors: Record<string, string> = {};
+
+    if (!/^\d{8}$/.test(recoveryCode)) {
+      validationErrors.code = "Introduce el código de 8 dígitos.";
+    }
+
+    if (newPassword.length < 6 || newPassword.length > 50) {
+      validationErrors.newPassword =
+        "La contraseña debe tener entre 6 y 50 caracteres.";
+    }
+
+    if (newPassword !== confirmPassword) {
+      validationErrors.confirmPassword = "Las contraseñas no coinciden.";
+    }
+
+    setErrors(validationErrors);
+    setError("");
+
+    if (Object.keys(validationErrors).length) return;
+
+    setSubmitting(true);
+
+    try {
+      await authService.resetPassword(key, recoveryCode, newPassword);
+
+      setPassword("");
+      setRecoveryCode("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setErrors({});
+      setError("");
+      setMode("recover-done");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo restablecer la contraseña.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const field = (
-    k: string,
+    fieldKey: string,
     label: string,
     icon: JSX.Element,
     value: string,
-    onChange: (v: string) => void,
+    onChange: (value: string) => void,
     type: string,
     onEnter: () => void,
     placeholder = "",
@@ -192,22 +253,27 @@ export function LoginView({
 
         <Input
           value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setErrors((er) => ({ ...er, [k]: "" }));
+          onChange={(event) => {
+            onChange(event.target.value);
+            setErrors((current) => ({
+              ...current,
+              [fieldKey]: "",
+            }));
           }}
           type={type}
           placeholder={placeholder}
-          onKeyDown={(e) => e.key === "Enter" && onEnter()}
+          onKeyDown={(event) => event.key === "Enter" && onEnter()}
           className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C8102E]/30 ${
-            errors[k]
+            errors[fieldKey]
               ? "border-red-400 bg-red-50"
               : "border-gray-200 bg-gray-50"
           }`}
         />
       </div>
 
-      {errors[k] && <p className="text-red-500 text-xs mt-1">{errors[k]}</p>}
+      {errors[fieldKey] && (
+        <p className="text-red-500 text-xs mt-1">{errors[fieldKey]}</p>
+      )}
     </div>
   );
 
@@ -231,7 +297,7 @@ export function LoginView({
     </div>
   );
 
-  const title = (t: string, sub: string) => (
+  const title = (heading: string, subtitle: string) => (
     <>
       <div className="flex justify-center mb-6">
         <Logo size={44} />
@@ -241,10 +307,10 @@ export function LoginView({
         className="text-2xl font-black text-center text-[#000080] mb-1"
         style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
       >
-        {t}
+        {heading}
       </h2>
 
-      <p className="text-center text-gray-400 text-sm mb-6">{sub}</p>
+      <p className="text-center text-gray-400 text-sm mb-6">{subtitle}</p>
     </>
   );
 
@@ -252,6 +318,9 @@ export function LoginView({
     setMode("login");
     setErrors({});
     setError("");
+    setRecoveryCode("");
+    setNewPassword("");
+    setConfirmPassword("");
   };
 
   if (mode === "recover-email") {
@@ -259,8 +328,10 @@ export function LoginView({
       <AuthShell>
         {title(
           "Recuperar contraseña",
-          "La recuperación estará disponible próximamente",
+          "Introduce el correo asociado a tu cuenta",
         )}
+
+        {error && banner("red", error)}
 
         <div className="space-y-4">
           {field(
@@ -276,9 +347,83 @@ export function LoginView({
 
           <button
             onClick={sendCode}
-            className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25]"
+            disabled={submitting}
+            className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25] disabled:opacity-50"
           >
-            Solicitar recuperación
+            {submitting ? "Generando código..." : "Solicitar recuperación"}
+          </button>
+
+          <button
+            onClick={back}
+            className="w-full text-sm text-gray-500 hover:text-[#C8102E] flex items-center justify-center gap-1"
+          >
+            <ChevronLeft size={14} />
+            Volver al inicio de sesión
+          </button>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  if (mode === "recover-code") {
+    return (
+      <AuthShell>
+        {title(
+          "Restablecer contraseña",
+          "Introduce el código y establece una contraseña nueva",
+        )}
+
+        {banner(
+          "amber",
+          "Modo de prueba: el código de recuperación aparece en la consola del servidor. Tiene una vigencia de 15 minutos.",
+        )}
+
+        {error && banner("red", error)}
+
+        <p className="text-sm text-gray-600 mb-4">
+          Correo de la cuenta: <strong>{key}</strong>
+        </p>
+
+        <div className="space-y-4">
+          {field(
+            "code",
+            "Código de recuperación",
+            <Lock size={15} />,
+            recoveryCode,
+            setRecoveryCode,
+            "text",
+            handleResetPassword,
+            "Código de 8 dígitos",
+          )}
+
+          {field(
+            "newPassword",
+            "Nueva contraseña",
+            <Lock size={15} />,
+            newPassword,
+            setNewPassword,
+            "password",
+            handleResetPassword,
+            "Mínimo 6 caracteres",
+          )}
+
+          {field(
+            "confirmPassword",
+            "Confirmar nueva contraseña",
+            <Lock size={15} />,
+            confirmPassword,
+            setConfirmPassword,
+            "password",
+            handleResetPassword,
+            "Repite la contraseña",
+          )}
+
+          <button
+            onClick={handleResetPassword}
+            disabled={submitting}
+            className="w-full py-3 rounded-xl bg-[#C8102E] text-white font-bold hover:bg-[#a80d25] disabled:opacity-50"
+          >
+            {submitting ? "Actualizando..." : "Cambiar contraseña"}
           </button>
 
           <button
@@ -315,8 +460,8 @@ export function LoginView({
           "Correo electrónico",
           <Mail size={15} />,
           email,
-          (v) => {
-            setEmail(v);
+          (value) => {
+            setEmail(value);
             setError("");
           },
           "email",

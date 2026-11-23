@@ -43,6 +43,8 @@ El sistema centraliza la administración de usuarios, clientes, productos, inven
 - Autenticación mediante correo y contraseña.
 - Control de acceso según el rol.
 - Gestión de sesiones.
+- Recuperación de contraseña mediante códigos de verificación.
+- Restablecimiento de contraseña con validación de código y tiempo de expiración.
 - Conversión referencial de precios entre dólares y bolívares.
 - Gestión de tasas de cambio.
 - Generación e impresión de recibos y documentos.
@@ -126,16 +128,18 @@ Express administra las solicitudes del cliente y expone las rutas de la API bajo
 
 Las rutas principales son:
 
-| Ruta             | Función                    |
-| ---------------- | -------------------------- |
-| `/api/auth`      | Autenticación y sesiones   |
-| `/api/users`     | Usuarios                   |
-| `/api/clients`   | Clientes                   |
-| `/api/products`  | Productos                  |
-| `/api/orders`    | Órdenes                    |
-| `/api/rates`     | Tasas de cambio            |
-| `/api/status`    | Estado del servidor        |
-| `/api/db-status` | Estado de la base de datos |
+| Ruta                        | Función                                                |
+| --------------------------- | ------------------------------------------------------ |
+| `/api/auth`                 | Autenticación y sesiones                               |
+| `/api/auth/forgot-password` | Solicitud de recuperación de contraseña                |
+| `/api/auth/reset-password`  | Validación del código y restablecimiento de contraseña |
+| `/api/users`                | Usuarios                                               |
+| `/api/clients`              | Clientes                                               |
+| `/api/products`             | Productos                                              |
+| `/api/orders`               | Órdenes                                                |
+| `/api/rates`                | Tasas de cambio                                        |
+| `/api/status`               | Estado del servidor                                    |
+| `/api/db-status`            | Estado de la base de datos                             |
 
 ### Base de datos
 
@@ -241,29 +245,33 @@ No es necesario ejecutar la instalación manualmente. El archivo `INICIAR.bat` c
 
 ### Inicializar la base de datos
 
-No se requiere ningún comando manual para inicializar SQLite.
+No se requiere ejecutar comandos manuales para inicializar SQLite.
 
-Al iniciar el servidor por primera vez, la aplicación crea automáticamente:
+Al iniciar el servidor, la aplicación realiza automáticamente las siguientes operaciones:
 
-- La carpeta `data/`.
-- El archivo `music-sport.db`.
-- La estructura de las tablas.
-- El administrador inicial, si todavía no existe.
-- Los datos de demostración, cuando corresponde.
+- Crea la carpeta `data/` si no existe.
+- Crea el archivo `music-sport.db` si es necesario.
+- Ejecuta el esquema para crear las tablas que todavía no existan.
+- Crea el administrador principal si su cuenta todavía no existe.
+- Comprueba si corresponde cargar los datos de demostración.
 
-La inicialización de los datos de demostración se controla mediante un registro interno para evitar que se carguen repetidamente.
+Los datos de demostración se cargan automáticamente cuando no existe un registro previo de inicialización, hay exactamente un usuario registrado (el administrador principal) y no hay productos registrados.
 
-Si la base de datos ya contiene información, esta se conserva y no se vuelve a ejecutar la carga de demostración.
+Si estas condiciones no se cumplen, la carga se omite y se registra esta decisión para evitar intentos repetidos. Los datos existentes se conservan.
 
-### Datos de demostración
+#### Datos de demostración
 
 El proyecto incluye el archivo `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
 
-En una base de datos nueva, los datos se cargan automáticamente durante la inicialización. Las cuentas de demostración utilizan la contraseña:
+En una instalación con una base de datos nueva, los registros se cargan automáticamente si se cumplen las condiciones de inicialización. No es necesario ejecutar el archivo SQL manualmente.
+
+Las cuentas de demostración utilizan la contraseña:
 
 ```text
 Demo123!
 ```
+
+La carga se registra internamente para evitar que los mismos datos se inserten repetidamente.
 
 ### Iniciar la aplicación en Windows
 
@@ -339,19 +347,13 @@ Contraseña: admin123
 
 Esta contraseña corresponde a la configuración inicial y debe cambiarse antes de utilizar el sistema en un entorno real.
 
-### Datos de demostración
+### Inicialización y conservación de datos
 
-El proyecto incluye `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
+La aplicación registra el estado de la carga de demostración en la tabla `INICIALIZACION`.
 
-Las cuentas de demostración creadas con esos datos utilizan:
+Cada instalación utiliza su propia base de datos local, ubicada en `data/music-sport.db`. Esta carpeta no se incluye en el repositorio ni en el paquete de entrega.
 
-```text
-Contraseña: Demo123!
-```
-
-La base de datos utilizada por cada instalación local se encuentra en `data/music-sport.db`.
-
-Los archivos de bases de datos están excluidos del repositorio mediante `.gitignore`. De esta manera, cada instalación mantiene sus propios datos locales, mientras que el esquema y los registros de demostración permanecen disponibles en el código fuente.
+El sistema conserva los datos existentes y evita volver a cargar los registros de demostración cuando la inicialización ya fue procesada.
 
 ## 9. Seguridad
 
@@ -365,6 +367,35 @@ El sistema incorpora:
 - Claves foráneas activadas en SQLite.
 - Secreto de sesión persistente para las ejecuciones locales.
 
+### Recuperación de contraseña
+
+El sistema incorpora un mecanismo de recuperación de contraseña mediante códigos de verificación de un solo uso.
+
+El proceso funciona de la siguiente manera:
+
+1. El usuario solicita recuperar su contraseña desde la pantalla de inicio de sesión.
+2. Introduce el correo electrónico asociado a su cuenta.
+3. El servidor genera un código numérico de ocho dígitos.
+4. El código tiene una vigencia de 15 minutos.
+5. El código se almacena mediante un hash SHA-256, evitando guardar el código original en la base de datos.
+6. El usuario introduce el código y establece una contraseña nueva.
+7. El servidor valida el código y actualiza la contraseña utilizando bcryptjs.
+8. Una vez utilizado, el código queda invalidado y no puede reutilizarse.
+
+#### Modo simulado
+
+La recuperación utiliza el modo `simulated`, habilitado mediante la variable de entorno:
+
+```env
+RECOVERY_MODE=simulated
+```
+
+En este modo, el código de recuperación se muestra en la consola del servidor para realizar pruebas y demostraciones locales.
+
+Este mecanismo no envía correos electrónicos. Para un despliegue público deberá integrarse un servicio de envío de correo electrónico y configurarse un mecanismo de recuperación apropiado para producción.
+
+### Consideraciones para despliegue
+
 El archivo `INICIAR.bat` ejecuta la versión compilada del sistema en modo de producción local. Esto no significa que la aplicación esté preparada para exponerse directamente a Internet.
 
 Antes de realizar un despliegue público se deben configurar adecuadamente:
@@ -374,6 +405,7 @@ Antes de realizar un despliegue público se deben configurar adecuadamente:
 - Cookies seguras.
 - Un `SESSION_SECRET` privado de al menos 32 caracteres.
 - Almacenamiento persistente y protegido para la base de datos.
+- Un servicio de correo electrónico para la recuperación de contraseñas.
 
 Las credenciales de demostración son exclusivamente para la presentación local y no deben utilizarse en un despliegue público.
 

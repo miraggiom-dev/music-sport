@@ -27,17 +27,13 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/5] Comprobando dependencias...
+echo [3/5] Instalando y verificando dependencias...
+call corepack pnpm install --frozen-lockfile
 
-if not exist "node_modules\.pnpm\lock.yaml" (
-    echo Instalando dependencias...
-    call corepack pnpm install --frozen-lockfile
-
-    if errorlevel 1 (
-        echo ERROR al instalar las dependencias.
-        pause
-        exit /b 1
-    )
+if errorlevel 1 (
+    echo ERROR al instalar las dependencias.
+    pause
+    exit /b 1
 )
 
 echo.
@@ -53,12 +49,15 @@ if errorlevel 1 (
 echo.
 echo [5/5] Iniciando servidor local...
 
-start "MusicSport-Servidor" cmd /k "cd /d ""%~dp0"" && set NODE_ENV=production && node server/index.js"
+set "NODE_ENV=production"
+set "RECOVERY_MODE=simulated"
+
+start "MusicSport-Servidor" /D "%~dp0" cmd /k "node server/index.js"
 
 echo.
 echo Esperando respuesta del servidor...
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(30); do { try { $r=Invoke-WebRequest -UseBasicParsing http://localhost:3000/api/status -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $deadline); exit 1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(30); do { try { $r=Invoke-WebRequest -UseBasicParsing 'http://localhost:3000/api/status' -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $deadline); exit 1"
 
 if errorlevel 1 (
     echo.

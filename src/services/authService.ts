@@ -31,6 +31,12 @@ interface AuthResponse {
 export interface AuthService {
   login(email: string, password: string): Promise<BackendUser>;
   register(data: RegisterData): Promise<BackendUser>;
+  requestPasswordReset(email: string): Promise<void>;
+  resetPassword(
+    email: string,
+    code: string,
+    newPassword: string,
+  ): Promise<void>;
   getCurrentUser(): Promise<BackendUser | null>;
   logout(): Promise<void>;
 }
@@ -82,6 +88,20 @@ export const authService: AuthService = {
     }
 
     return data.user;
+  },
+
+  async requestPasswordReset(email) {
+    await authRequest("/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(email, code, newPassword) {
+    await authRequest("/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, code, newPassword }),
+    });
   },
 
   async getCurrentUser() {
