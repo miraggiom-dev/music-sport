@@ -1,280 +1,340 @@
-# Aplicación web de gestión de inventario y ventas
+# Music&Sport
 
-## Music & Sport, DSS C.A.
+## Sistema web de gestión de inventario y ventas
 
-Music&Sport DSS es una aplicación web para automatizar los procesos operativos de inventario y ventas de Music&Sport DSS, C.A. Permite gestionar productos, órdenes, pagos y clientes desde un catálogo digital con acceso diferenciado por rol:
+Music&Sport es una aplicación web desarrollada como proyecto académico para gestionar las operaciones de una tienda de artículos musicales y deportivos.
 
-- Administrador
-- Vendedor
-- Cliente
+El sistema centraliza la administración de usuarios, clientes, productos, inventario, órdenes de compra, pagos y tasas de cambio, mediante interfaces diferenciadas según el rol de cada usuario.
 
-> **Estado actual:** prototipo frontend funcional con datos simulados en memoria. El backend y la base de datos todavía están pendientes de definición e implementación. Los datos se reinician al recargar la aplicación.
+## 1. Funcionalidades
 
-## Características principales
+### Administrador
+- Panel de control con indicadores del negocio.
+- Gestión de usuarios y vendedores.
+- Gestión de clientes.
+- Registro, edición y administración de productos.
+- Control de inventario y existencias.
+- Consulta y gestión de órdenes.
+- Revisión de informes.
+- Administración de tasas de cambio.
 
-### Acceso y roles
+### Vendedor
+- Panel de operaciones.
+- Consulta y gestión de órdenes asignadas.
+- Revisión y procesamiento de pagos.
+- Actualización de estados de las operaciones.
+- Consulta del inventario.
 
-- Inicio y cierre de sesión para los tres roles.
-- Credenciales de demostración basadas en mock data.
-- Redirección al área correspondiente después del inicio de sesión.
-- Protección de áreas mediante guards de React Router.
-- Control de permisos para evitar el acceso de un rol a módulos no autorizados.
+### Cliente
+- Catálogo de productos.
+- Búsqueda y filtrado por categorías.
+- Consulta del detalle de productos.
+- Carrito de compras.
+- Proceso de checkout.
+- Registro y consulta de órdenes.
+- Consulta y actualización del perfil.
 
-### Catálogo y carrito
-
-- Exploración y búsqueda de productos.
-- Filtros por categoría y disponibilidad.
-- Agregar, modificar y eliminar artículos del carrito.
-- Validación del stock antes de agregar productos y emitir órdenes.
-- Precios en USD con conversión referencial a bolívares usando la tasa activa.
-
-### Órdenes y pagos
-
-- Emisión de órdenes de compra.
-- Métodos de pago en bolívares y divisas, incluyendo Zelle y Binance.
-- Registro de referencias de pago.
-- Flujo de revisión y cambio de estado de las órdenes.
+### Funcionalidades generales
+- Autenticación mediante correo y contraseña.
+- Control de acceso según el rol.
+- Gestión de sesiones.
+- Conversión referencial de precios entre dólares y bolívares.
+- Gestión de tasas de cambio.
 - Generación e impresión de recibos y documentos.
 
-### Inventario y administración
+## 2. Tecnologías utilizadas
 
-- Registro, edición y eliminación de productos.
-- Control de stock y alertas de inventario bajo.
-- Gestión de usuarios internos.
-- Gestión de clientes.
-- Gestión de órdenes.
-- Informes de ventas e inventario.
-- Configuración de tasas de cambio.
-- Dashboard con métricas operativas.
-
-### Área del vendedor
-
-- Panel de órdenes.
-- Revisión y procesamiento de pagos.
-- Actualización del estado de las órdenes.
-- Consulta de inventario permitido para el rol.
-
-### Área del cliente
-
-- Catálogo de productos.
-- Detalle de producto.
-- Carrito y checkout.
-- Confirmación de órdenes.
-- Historial de órdenes.
-- Edición del perfil.
-
-## Arquitectura
-
-```text
-src/
-├── app/
-│   ├── App.tsx              Coordinación temporal del estado mock y composición
-│   ├── AppShell.tsx         Componente raíz de la aplicación
-│   ├── auth/
-│   ├── admin/
-│   │   ├── layout.tsx       Área protegida de administrador
-│   │   └── [módulos]/
-│   ├── vendedor/
-│   │   ├── layout.tsx       Área protegida de vendedor
-│   │   └── [módulos]/
-│   └── cliente/
-│       ├── layout.tsx       Área protegida de cliente
-│       └── [módulos]/
-│
-├── components/
-│   ├── shared/              Componentes y helpers reutilizables
-│   ├── admin/               Vistas separadas por módulo + barrel index.ts
-│   ├── vendedor/            Vistas separadas por módulo + barrel index.ts
-│   ├── cliente/             Vistas separadas por módulo + barrel index.ts
-│   └── auth/                Shell y vistas separadas + barrel index.ts
-│
-├── contexts/
-│   ├── AuthContext.tsx       Estado transversal de autenticación y rol
-│   └── RateContext.ts        Tasa de cambio activa
-│
-├── hooks/
-│   ├── useAuth.ts
-│   └── useTasaCambio.ts
-│
-├── lib/
-│   ├── constants.ts          Constantes del dominio
-│   ├── permissions.ts        Permisos y vistas por rol
-│   ├── guards.tsx            Protección de áreas
-│   ├── validation.ts         Validaciones reutilizables
-│   ├── formatCurrency.ts     Formateo de monedas
-│   └── generatePDF.ts        Impresión y generación de documentos
-│
-├── services/
-│   ├── authService.ts
-│   ├── productService.ts
-│   ├── orderService.ts
-│   ├── clientService.ts
-│   └── rateService.ts
-│
-├── data/
-│   └── mockData.ts           Datos temporales en memoria
-│
-├── types/
-│   └── index.ts              Tipos e interfaces del dominio
-│
-└── main.tsx                  Punto de entrada de React
-```
-
-### Context
-
-**Context** comparte estado transversal sin pasar props por toda la aplicación:
-
-- `AuthContext`: autenticación, rol, usuario interno, cliente actual y mensajes.
-- `RateContext`: tasa de cambio activa.
-
-### Hooks
-
-**Hooks** encapsulan el acceso a los contextos y lógica reutilizable:
-
-- `useAuth`
-- `useTasaCambio`
-
-### Guards
-
-Los **guards** (`src/lib/guards.tsx`) protegen áreas y redirigen según el rol:
-
-- `AdminGuard`
-- `VendorGuard`
-- `ClientGuard`
-- `RequireAuth`
-
-Las rutas siguen siendo compatibles con la navegación existente y utilizan URLs reales como:
-
-```text
-/login
-/admin/dashboard
-/admin/productos
-/vendedor/panel
-/vendedor/ordenes
-/catalogo
-/carrito
-/perfil
-```
-
-### Services
-
-Los **services** (`src/services`) exponen APIs TypeScript para:
-
-- Autenticación
-- Productos
-- Órdenes
-- Clientes
-- Tasas de cambio
-
-Actualmente delegan en `src/data/mockData.ts`. No realizan persistencia ni llamadas a un backend. Esta capa permitirá reemplazar posteriormente la implementación mock por llamadas a una API sin modificar las vistas.
-
-### Carga diferida
-
-Las áreas administrativas, de vendedor y autenticación utilizan `lazy()` y `Suspense` para cargar sus módulos bajo demanda y reducir el bundle inicial.
-
-El catálogo y sus páginas también se dividen en chunks cuando corresponde.
-
-## Flujo de datos actual
-
-```text
-Vista React
-    ↓
-Context / Hook
-    ↓
-Service TypeScript
-    ↓
-mockData.ts
-```
-
-## Tecnologías
-
+### Frontend
 - React 18
 - TypeScript
 - Vite
-- Tailwind CSS v4
+- Tailwind CSS 4
 - React Router
 - Recharts
 - Lucide React
 - Sonner
-- Vitest
 
-## Requisitos
+### Backend
+- Node.js
+- Express 5
+- express-session
+- bcryptjs
 
-- Node.js 18 o superior
+### Base de datos
+- SQLite
+- better-sqlite3
+
+### Desarrollo y pruebas
 - pnpm
+- Vitest
+- TypeScript
 
-## Instalación
+## 3. Arquitectura del sistema
+
+La aplicación utiliza una arquitectura cliente-servidor.
+
+```text
+Usuario
+   |
+   v
+Frontend React + TypeScript
+   |
+   | Solicitudes HTTP
+   v
+Backend Node.js + Express
+   |
+   +---- API de autenticación
+   +---- API de usuarios
+   +---- API de clientes
+   +---- API de productos
+   +---- API de órdenes
+   +---- API de tasas de cambio
+   |
+   v
+SQLite
+   |
+   +---- Usuarios
+   +---- Clientes
+   +---- Productos
+   +---- Inventario
+   +---- Órdenes de compra
+   +---- Detalles de compra
+   +---- Pagos
+   +---- Recibos
+   +---- Carritos
+   +---- Tasas de cambio
+   +---- Informes
+   +---- Sesiones
+```
+
+### Frontend
+
+La interfaz está desarrollada con React y TypeScript. Está organizada en componentes, páginas, contextos, servicios y tipos, con interfaces separadas para los distintos roles.
+
+### Backend
+
+Express administra las solicitudes del cliente y expone las rutas de la API bajo el prefijo `/api`.
+
+Las rutas principales son:
+
+| Ruta | Función |
+|---|---|
+| `/api/auth` | Autenticación y sesiones |
+| `/api/users` | Usuarios |
+| `/api/clients` | Clientes |
+| `/api/products` | Productos |
+| `/api/orders` | Órdenes |
+| `/api/rates` | Tasas de cambio |
+| `/api/status` | Estado del servidor |
+| `/api/db-status` | Estado de la base de datos |
+
+### Base de datos
+
+SQLite almacena la información de manera persistente en el archivo:
+
+```text
+data/music-sport.db
+```
+
+La estructura de las tablas se encuentra definida en `database/schema.js`.
+
+La conexión se administra desde `database/connection.js`, donde se configura SQLite, se activan las claves foráneas y se inicializa el esquema.
+
+Las sesiones se almacenan también en SQLite mediante el módulo `server/sessionStore.js`.
+
+## 4. Estructura del proyecto
+
+```text
+APP WEB/
+|
++-- database/
+|   +-- schema.js
+|   +-- connection.js
+|   +-- create-admin.js
+|   +-- demo-data.sql
+|   +-- seeds/
+|
++-- data/
+|   +-- music-sport.db
+|
++-- server/
+|   +-- index.js
+|   +-- sessionStore.js
+|   +-- routes/
+|       +-- auth.js
+|       +-- users.js
+|       +-- clients.js
+|       +-- products.js
+|       +-- orders.js
+|       +-- rates.js
+|
++-- src/
+|   +-- app/
+|   +-- components/
+|   +-- contexts/
+|   +-- hooks/
+|   +-- lib/
+|   +-- services/
+|   +-- types/
+|   +-- main.tsx
+|
++-- public/
++-- package.json
++-- pnpm-lock.yaml
++-- INICIAR.bat
++-- README.md
+```
+
+## 5. Requisitos
+
+Para ejecutar el proyecto se necesita:
+
+- Windows 10 o superior (para utilizar el archivo INICIAR.bat).
+- Node.js 22 o superior.
+- pnpm 12.8.1.
+- Git (opcional, para obtener el proyecto desde GitHub).
+
+## 6. Instalación
+
+### Obtener el proyecto
+
+Clonar el repositorio:
+
+```bash
+git clone https://github.com/miraggiom-dev/music-sport.git
+cd music-sport
+```
+
+### Instalar dependencias
 
 ```bash
 pnpm install
-pnpm dev
 ```
 
-La aplicación estará disponible en `http://localhost:5173`.
+### Iniciar la aplicación en Windows
 
-Para permitir el acceso desde otros dispositivos de la red local:
-
-```bash
-pnpm dev
-```
-
-El script de desarrollo ya está configurado para escuchar en `0.0.0.0`. Vite mostrará la dirección de red disponible en la terminal.
-
-## Comandos
-
-```bash
-pnpm dev                 # servidor de desarrollo
-pnpm build               # compilación de producción
-pnpm test                # pruebas automatizadas
-pnpm exec tsc --noEmit   # comprobación de TypeScript
-pnpm exec vite preview   # vista previa de producción
-```
-
-## Credenciales de prueba
-
-Las siguientes cuentas utilizan los datos simulados actuales:
+Ejecutar:
 
 ```text
-Administrador
-Correo:      admin@musicsport.com
-Contraseña:  admin123
-
-Vendedor
-Correo:      vendedor@musicsport.com
-Contraseña:  vendedor123
-
-Cliente
-Correo:      cliente@demo.com
-Contraseña:  cliente123
+INICIAR.bat
 ```
 
-Estas credenciales son únicamente para desarrollo. La autenticación real se implementará en el backend.
+El archivo realiza las siguientes operaciones:
 
-## Datos y persistencia
+1. Accede a la carpeta del proyecto.
+2. Compila el frontend.
+3. Inicia el servidor Express.
+4. Abre el navegador en la dirección local.
 
-Los datos actuales se encuentran en [src/data/mockData.ts](./src/data/mockData.ts) y se mantienen en memoria:
+La aplicación estará disponible en:
 
-- Productos
-- Usuarios internos
-- Clientes
-- Órdenes
-- Tasas de cambio
+```text
+http://localhost:3000
+```
 
-No existe persistencia entre sesiones ni conexión con una base de datos.
+### Inicio manual
 
-## Módulos por integrante
+También es posible compilar e iniciar el sistema manualmente:
 
-| Módulo | Responsable | Carpeta |
-|---|---|---|
-| Catálogo y carrito | Melissa | `src/app/cliente/` |
-| Panel administrador | Sebastián y Carlos | `src/app/admin/` |
-| Panel vendedor | Dominic | `src/app/vendedor/` |
-| Autenticación | — | `src/app/auth/` |
-| Servicios y futura integración API | — | `src/services/` |
-| Backend y base de datos | — | Pendiente de definición |
+```bash
+pnpm build
+pnpm server
+```
 
+Para trabajar únicamente con el servidor de desarrollo del frontend:
 
-## Licencia
+```bash
+pnpm dev
+```
 
-Proyecto académico — Universidad Privada Dr. Rafael Belloso Chacín (URBE).  
-Ingeniería del Software II · Sección N913
+## 7. Comandos disponibles
+
+| Comando | Descripción |
+|---|---|
+| `pnpm install` | Instala las dependencias |
+| `pnpm dev` | Inicia Vite en modo desarrollo |
+| `pnpm build` | Compila el frontend |
+| `pnpm server` | Inicia el servidor Express |
+| `pnpm start` | Inicia el servidor Express |
+| `pnpm test` | Ejecuta las pruebas automatizadas |
+| `pnpm exec tsc --noEmit` | Comprueba los tipos de TypeScript |
+
+## 8. Base de datos y usuarios
+
+La aplicación utiliza SQLite y crea automáticamente la estructura de la base de datos cuando se inicia el servidor.
+
+En una base de datos nueva, si no existe un administrador, se crea inicialmente la siguiente cuenta:
+
+```text
+Correo: admin@musicsport.com
+Contraseña: admin123
+```
+
+Esta contraseña corresponde a la configuración inicial y debe cambiarse antes de utilizar el sistema en un entorno real.
+
+### Datos de demostración
+
+El proyecto incluye `database/demo-data.sql`, que contiene registros ficticios para facilitar la presentación y demostración de las funcionalidades.
+
+Las cuentas de demostración creadas con esos datos utilizan:
+
+```text
+Contraseña: Demo123!
+```
+
+La base de datos utilizada por la instalación local se encuentra en `data/music-sport.db`.
+
+No se debe ejecutar nuevamente el archivo de demostración sobre una base que ya contenga esos registros, porque podría duplicar información.
+
+## 9. Seguridad
+
+El sistema incorpora:
+
+- Contraseñas almacenadas mediante hashes con bcryptjs.
+- Autenticación basada en sesiones.
+- Almacenamiento persistente de sesiones en SQLite.
+- Cookies HTTP-only.
+- Control de acceso según roles.
+- Claves foráneas activadas en SQLite.
+
+Para producción se deben configurar las variables de entorno correspondientes, especialmente:
+
+- `NODE_ENV`
+- `SESSION_SECRET`
+- `DATA_DIRECTORY`
+
+El secreto de sesión debe tener al menos 32 caracteres en producción. Las credenciales iniciales y los secretos de desarrollo no deben utilizarse en un despliegue real.
+
+## 10. Pruebas y calidad
+
+El proyecto utiliza Vitest para las pruebas automatizadas y TypeScript para la comprobación estática de tipos.
+
+Los comandos de verificación son:
+
+```bash
+pnpm test
+pnpm exec tsc --noEmit
+pnpm build
+```
+
+## 11. Repositorio
+
+GitHub:
+
+https://github.com/miraggiom-dev/music-sport
+
+Rama principal de trabajo:
+
+```text
+develop
+```
+
+## 12. Información académica
+
+Proyecto académico desarrollado para la asignatura Ingeniería del Software II.
+
+Universidad Privada Dr. Rafael Belloso Chacín (URBE).
+
+---
+
+**Music&Sport — Sistema de gestión de inventario y ventas.**
