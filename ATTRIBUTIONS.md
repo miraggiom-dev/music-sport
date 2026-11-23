@@ -1,0 +1,1 @@
+El banner visual del catálogo utiliza una imagen de [Unsplash](https://unsplash.com), conforme a su [licencia](https://unsplash.com/license).
